@@ -1,4 +1,4 @@
-name: Hello World
+name: Open URL with Playwright
 
 on:
   push:
@@ -6,8 +6,39 @@ on:
   workflow_dispatch:
 
 jobs:
-  hello:
+  open-url:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Print Hello World
-        run: echo "Hello, World!"
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm install @playwright/test
+          npx playwright install --with-deps chromium
+
+      - name: Open URL
+        run: |
+          node -e "
+          const { chromium } = require('@playwright/test');
+          (async () => {
+            const browser = await chromium.launch();
+            const page = await browser.newPage();
+            await page.goto('https://example.com');
+            console.log('Title:', await page.title());
+            await page.screenshot({ path: 'screenshot.png' });
+            await browser.close();
+          })();
+          "
+
+      - name: Upload screenshot
+        uses: actions/upload-artifact@v3
+        with:
+          name: screenshot
+          path: screenshot.png
