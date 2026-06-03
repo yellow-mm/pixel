@@ -1,594 +1,197 @@
 
+<h2 class="sr-only">Case priority analysis dashboard for 8 active support cases</h2>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap');
-  { box-sizing: border-box; }
-  :root {
-    --px: 3px;
-    --c-blue: #4488ff;
-    --c-red: #ff4455;
-    --c-green: #44ff88;
-    --c-yellow: #ffdd44;
-    --c-purple: #cc44ff;
-    --c-dark: #0a0a1a;
-    --c-panel: #111128;
-    --c-border: #334;
+  .case-row { display: grid; grid-template-columns: 28px minmax(0,1fr) 90px 110px 80px; gap: 0; align-items: stretch; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .case-row:last-child { border-bottom: none; }
+  .cell { padding: 10px 12px; font-size: 13px; color: var(--color-text-primary); display: flex; align-items: center; }
+  .cell-num { color: var(--color-text-tertiary); font-size: 12px; justify-content: center; padding-left: 8px; }
+  .cell-info { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .case-title { font-weight: 500; font-size: 13px; line-height: 1.3; }
+  .case-customer { font-size: 11px; color: var(--color-text-secondary); }
+  .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: var(--border-radius-md); white-space: nowrap; }
+  .badge-critical { background: #FCEBEB; color: #791F1F; }
+  .badge-high { background: #FAEEDA; color: #633806; }
+  .badge-medium { background: #E6F1FB; color: #0C447C; }
+  .badge-low { background: #EAF3DE; color: #27500A; }
+  .status-pill { font-size: 11px; padding: 2px 8px; border-radius: 20px; border: 0.5px solid var(--color-border-secondary); color: var(--color-text-secondary); white-space: nowrap; }
+  .score-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .score-bar-bg { flex: 1; height: 4px; background: var(--color-background-secondary); border-radius: 2px; overflow: hidden; }
+  .score-bar-fill { height: 100%; border-radius: 2px; }
+  .score-num { font-size: 11px; color: var(--color-text-secondary); min-width: 20px; text-align: right; }
+  .table-header { display: grid; grid-template-columns: 28px minmax(0,1fr) 90px 110px 80px; border-bottom: 0.5px solid var(--color-border-primary); margin-bottom: 0; }
+  .th { padding: 8px 12px; font-size: 11px; color: var(--color-text-secondary); font-weight: 500; }
+  .th-center { text-align: center; }
+  .reason-tag { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+  .metric-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px; }
+  .metric-label { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 4px; }
+  .metric-val { font-size: 22px; font-weight: 500; }
+  .section-label { font-size: 11px; color: var(--color-text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px; padding: 0; }
+  .card-outer { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
+  @media (prefers-color-scheme: dark) {
+    .badge-critical { background: #501313; color: #F7C1C1; }
+    .badge-high { background: #412402; color: #FAC775; }
+    .badge-medium { background: #042C53; color: #B5D4F4; }
+    .badge-low { background: #173404; color: #C0DD97; }
   }
-  .arena {
-    background: var(--c-dark);
-    padding: 0;
-    font-family: 'Press Start 2P', monospace;
-    color: #dde;
-    position: relative;
-    overflow: hidden;
-    min-height: 680px;
-    image-rendering: pixelated;
-  }
-  .header {
-    background: var(--c-panel);
-    border-bottom: 2px solid var(--c-border);
-    padding: 12px 16px 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .title { font-size: 8px; color: var(--c-yellow); letter-spacing: 1px; }
-  .round-badge { font-size: 7px; color: #888; }
-  .battlefield {
-    display: grid;
-    grid-template-columns: 1fr 40px 1fr;
-    gap: 0;
-    padding: 0;
-  }
-  .agent-panel {
-    background: var(--c-panel);
-    border-right: 1px solid var(--c-border);
-    padding: 12px;
-    position: relative;
-  }
-  .agent-panel.right { border-right: none; border-left: 1px solid var(--c-border); }
-  .agent-name {
-    font-size: 7px;
-    letter-spacing: 1px;
-    margin-bottom: 8px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--c-border);
-  }
-  .name-blue { color: var(--c-blue); }
-  .name-red { color: var(--c-red); }
-  .hp-bar-wrap { margin-bottom: 8px; }
-  .hp-label { font-size: 5px; color: #888; margin-bottom: 3px; }
-  .hp-bar {
-    height: 8px;
-    background: #222;
-    border: 1px solid #445;
-    position: relative;
-    image-rendering: pixelated;
-  }
-  .hp-fill {
-    height: 100%;
-    transition: width 0.4s steps(20);
-    position: relative;
-  }
-  .hp-fill::after {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-    background: rgba(255,255,255,0.25);
-  }
-  .hp-fill-blue { background: var(--c-blue); }
-  .hp-fill-red { background: var(--c-red); }
-  .xp-bar-wrap { margin-bottom: 10px; }
-  .xp-fill { background: var(--c-yellow); }
-  .pixel-sprite {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    margin: 10px 0;
-  }
-  canvas { image-rendering: pixelated; }
-  .stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4px;
-    margin-bottom: 8px;
-  }
-  .stat-box {
-    background: #0d0d20;
-    border: 1px solid #334;
-    padding: 4px 6px;
-  }
-  .stat-label { font-size: 4px; color: #667; margin-bottom: 2px; }
-  .stat-val { font-size: 7px; }
-  .blue { color: var(--c-blue); }
-  .red { color: var(--c-red); }
-  .green { color: var(--c-green); }
-  .yellow { color: var(--c-yellow); }
-  .purple { color: var(--c-purple); }
-  .skills-list { margin-top: 6px; }
-  .skill-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 4px;
-    cursor: pointer;
-    padding: 3px 4px;
-    border: 1px solid transparent;
-    transition: border-color 0.1s;
-  }
-  .skill-row:hover { border-color: #445; background: #0d0d20; }
-  .skill-icon {
-    width: 14px; height: 14px;
-    border: 1px solid #445;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 8px;
-    flex-shrink: 0;
-  }
-  .skill-name { font-size: 5px; color: #aac; flex: 1; }
-  .skill-power { font-size: 5px; }
-  .vs-col {
-    background: var(--c-dark);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-  }
-  .vs-text {
-    font-family: 'Press Start 2P';
-    font-size: 9px;
-    color: var(--c-yellow);
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    letter-spacing: 4px;
-  }
-  .battle-log {
-    background: #080812;
-    border-top: 2px solid var(--c-border);
-    padding: 10px 14px;
-    min-height: 110px;
-    max-height: 140px;
-    overflow-y: auto;
-    position: relative;
-  }
-  .log-line {
-    font-size: 5px;
-    color: #88aacc;
-    margin-bottom: 3px;
-    padding: 2px 0;
-    border-bottom: 1px solid #111;
-    line-height: 1.6;
-    animation: fadein 0.3s ease;
-  }
-  @keyframes fadein { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; } }
-  .log-line.dmg { color: var(--c-red); }
-  .log-line.heal { color: var(--c-green); }
-  .log-line.system { color: var(--c-yellow); }
-  .log-line.crit { color: var(--c-purple); }
-  .controls {
-    background: var(--c-panel);
-    border-top: 1px solid var(--c-border);
-    padding: 8px 14px;
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  .btn {
-    font-family: 'Press Start 2P', monospace;
-    font-size: 5px;
-    padding: 6px 10px;
-    border: 2px solid;
-    background: transparent;
-    cursor: pointer;
-    letter-spacing: 0.5px;
-    transition: all 0.1s steps(2);
-    color: inherit;
-  }
-  .btn:active { transform: translate(1px,1px); }
-  .btn-blue { border-color: var(--c-blue); color: var(--c-blue); }
-  .btn-blue:hover { background: var(--c-blue); color: #000; }
-  .btn-red { border-color: var(--c-red); color: var(--c-red); }
-  .btn-red:hover { background: var(--c-red); color: #000; }
-  .btn-yellow { border-color: var(--c-yellow); color: var(--c-yellow); }
-  .btn-yellow:hover { background: var(--c-yellow); color: #000; }
-  .btn-green { border-color: var(--c-green); color: var(--c-green); }
-  .btn-green:hover { background: var(--c-green); color: #000; }
-  .auto-badge {
-    font-size: 5px;
-    padding: 3px 7px;
-    border: 1px solid #445;
-    color: #667;
-    margin-left: auto;
-  }
-  .auto-badge.on { border-color: var(--c-green); color: var(--c-green); }
-  .effect-flash {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.05s;
-  }
-  .flash-active { opacity: 0.15 !important; }
 </style>
 
-<div class="arena" id="arena">
-  <div class="header">
-    <span class="title">⚔ AI AGENT BATTLE ARENA ⚔</span>
-    <span class="round-badge" id="round-badge">ROUND 1</span>
-  </div>
-
-  <div class="battlefield">
-    <!-- AGENT A: Code Agent -->
-    <div class="agent-panel" id="panel-a">
-      <div class="effect-flash" id="flash-a" style="background: var(--c-blue);"></div>
-      <div class="agent-name name-blue">▶ CODE AGENT</div>
-      <div class="hp-bar-wrap">
-        <div class="hp-label">HP</div>
-        <div class="hp-bar"><div class="hp-fill hp-fill-blue" id="hp-a" style="width:100%"></div></div>
-        <div style="font-size:5px;color:#557;margin-top:2px" id="hp-a-val">100 / 100</div>
-      </div>
-      <div class="xp-bar-wrap">
-        <div class="hp-label">XP</div>
-        <div class="hp-bar"><div class="hp-fill xp-fill" id="xp-a" style="width:0%"></div></div>
-      </div>
-      <div class="pixel-sprite">
-        <canvas id="sprite-a" width="48" height="48"></canvas>
-      </div>
-      <div class="stats-grid">
-        <div class="stat-box"><div class="stat-label">ATK</div><div class="stat-val blue" id="stat-atk-a">42</div></div>
-        <div class="stat-box"><div class="stat-label">DEF</div><div class="stat-val blue" id="stat-def-a">28</div></div>
-        <div class="stat-box"><div class="stat-label">SPD</div><div class="stat-val green">71</div></div>
-        <div class="stat-box"><div class="stat-label">INT</div><div class="stat-val purple">95</div></div>
-      </div>
-      <div class="skills-list">
-        <div class="hp-label" style="margin-bottom:4px">SKILLS</div>
-        <div class="skill-row" onclick="useSkill('a',0)">
-          <div class="skill-icon blue">⚡</div>
-          <span class="skill-name">COMPILE BLAST</span>
-          <span class="skill-power blue">DMG:35</span>
-        </div>
-        <div class="skill-row" onclick="useSkill('a',1)">
-          <div class="skill-icon purple">🔧</div>
-          <span class="skill-name">REFACTOR BEAM</span>
-          <span class="skill-power purple">DMG:22+DOT</span>
-        </div>
-        <div class="skill-row" onclick="useSkill('a',2)">
-          <div class="skill-icon green">💾</div>
-          <span class="skill-name">CACHE HEAL</span>
-          <span class="skill-power green">HEAL:25</span>
-        </div>
-        <div class="skill-row" onclick="useSkill('a',3)">
-          <div class="skill-icon yellow">🧠</div>
-          <span class="skill-name">DEBUG NOVA</span>
-          <span class="skill-power yellow">DMG:55 SLOW</span>
-        </div>
-      </div>
+<div style="padding: 1rem 0;">
+  <div class="summary-grid">
+    <div class="metric-card">
+      <div class="metric-label">Critical</div>
+      <div class="metric-val" style="color: var(--color-text-danger);">2</div>
     </div>
-
-    <!-- VS col -->
-    <div class="vs-col">
-      <div class="vs-text">VS</div>
+    <div class="metric-card">
+      <div class="metric-label">High</div>
+      <div class="metric-val" style="color: var(--color-text-warning);">3</div>
     </div>
-
-    <!-- AGENT B: Pixel Agent -->
-    <div class="agent-panel right" id="panel-b">
-      <div class="effect-flash" id="flash-b" style="background: var(--c-red);"></div>
-      <div class="agent-name name-red">▶ PIXEL AGENT</div>
-      <div class="hp-bar-wrap">
-        <div class="hp-label">HP</div>
-        <div class="hp-bar"><div class="hp-fill hp-fill-red" id="hp-b" style="width:100%"></div></div>
-        <div style="font-size:5px;color:#755;margin-top:2px" id="hp-b-val">100 / 100</div>
-      </div>
-      <div class="xp-bar-wrap">
-        <div class="hp-label">XP</div>
-        <div class="hp-bar"><div class="hp-fill xp-fill" id="xp-b" style="width:0%"></div></div>
-      </div>
-      <div class="pixel-sprite">
-        <canvas id="sprite-b" width="48" height="48"></canvas>
-      </div>
-      <div class="stats-grid">
-        <div class="stat-box"><div class="stat-label">ATK</div><div class="stat-val red" id="stat-atk-b">50</div></div>
-        <div class="stat-box"><div class="stat-label">DEF</div><div class="stat-val red" id="stat-def-b">18</div></div>
-        <div class="stat-box"><div class="stat-label">SPD</div><div class="stat-val green">85</div></div>
-        <div class="stat-box"><div class="stat-label">INT</div><div class="stat-val purple">78</div></div>
-      </div>
-      <div class="skills-list">
-        <div class="hp-label" style="margin-bottom:4px">SKILLS</div>
-        <div class="skill-row" onclick="useSkill('b',0)">
-          <div class="skill-icon red">🎨</div>
-          <span class="skill-name">PIXEL STORM</span>
-          <span class="skill-power red">DMG:45</span>
-        </div>
-        <div class="skill-row" onclick="useSkill('b',1)">
-          <div class="skill-icon yellow">✨</div>
-          <span class="skill-name">SPRITE CURSE</span>
-          <span class="skill-power yellow">DMG:18+BURN</span>
-        </div>
-        <div class="skill-row" onclick="useSkill('b',2)">
-          <div class="skill-icon purple">🖼</div>
-          <span class="skill-name">RENDER SHIELD</span>
-          <span class="skill-power purple">DEF+20 2RND</span>
-        </div>
-        <div class="skill-row" onclick="useSkill('b',3)">
-          <div class="skill-icon green">🌈</div>
-          <span class="skill-name">PALETTE DRAIN</span>
-          <span class="skill-power green">STEAL:20HP</span>
-        </div>
-      </div>
+    <div class="metric-card">
+      <div class="metric-label">Medium</div>
+      <div class="metric-val" style="color: var(--color-text-info);">2</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Low</div>
+      <div class="metric-val" style="color: var(--color-text-success);">1</div>
     </div>
   </div>
 
-  <div class="battle-log" id="battle-log">
-    <div class="log-line system">▶ BATTLE INITIALIZED. CHOOSE YOUR ACTION!</div>
-  </div>
+  <p class="section-label">Cases ranked by priority</p>
+  <div class="card-outer">
+    <div class="table-header">
+      <div class="th th-center">#</div>
+      <div class="th">Case</div>
+      <div class="th">Priority</div>
+      <div class="th">Urgency score</div>
+      <div class="th">Status</div>
+    </div>
 
-  <div class="controls">
-    <button class="btn btn-blue" onclick="autoAttack('a')">A ATTACK</button>
-    <button class="btn btn-blue" onclick="autoSkill('a')">A SKILL</button>
-    <button class="btn btn-red" onclick="autoAttack('b')">B ATTACK</button>
-    <button class="btn btn-red" onclick="autoSkill('b')">B SKILL</button>
-    <button class="btn btn-yellow" onclick="toggleAuto()">AUTO</button>
-    <button class="btn btn-green" onclick="resetGame()">RESET</button>
-    <span class="auto-badge" id="auto-badge">AUTO: OFF</span>
+    <div class="case-row">
+      <div class="cell cell-num">4</div>
+      <div class="cell cell-info">
+        <span class="case-title">Replace FortiGate 120G — Seriwattana</span>
+        <span class="reason-tag">Multiple blockers pending: license, TOT ISP, SNMP, LDAP — many tasks stalled in parallel</span>
+      </div>
+      <div class="cell"><span class="badge badge-critical"><i class="ti ti-alert-circle" aria-hidden="true" style="font-size:13px"></i>Critical</span></div>
+      <div class="cell">
+        <div class="score-bar-wrap" style="width:100%">
+          <div class="score-bar-bg"><div class="score-bar-fill" style="width:92%;background:#E24B4A"></div></div>
+          <span class="score-num">92</span>
+        </div>
+      </div>
+      <div class="cell"><span class="status-pill">Not complete</span></div>
+    </div>
+
+    <div class="case-row">
+      <div class="cell cell-num">5</div>
+      <div class="cell cell-info">
+        <span class="case-title">Replace Sophos XGS-2100 — BlueVenture</span>
+        <span class="reason-tag">License unregistered, HA & Radius auth not done — firewall replacement incomplete</span>
+      </div>
+      <div class="cell"><span class="badge badge-critical"><i class="ti ti-alert-circle" aria-hidden="true" style="font-size:13px"></i>Critical</span></div>
+      <div class="cell">
+        <div class="score-bar-wrap" style="width:100%">
+          <div class="score-bar-bg"><div class="score-bar-fill" style="width:88%;background:#E24B4A"></div></div>
+          <span class="score-num">88</span>
+        </div>
+      </div>
+      <div class="cell"><span class="status-pill">In progress</span></div>
+    </div>
+
+    <div class="case-row">
+      <div class="cell cell-num">2</div>
+      <div class="cell cell-info">
+        <span class="case-title">Replace FortiGate 200E — Matsui</span>
+        <span class="reason-tag">Hardware broken, awaiting remote IPsec config on new unit — customer blocked</span>
+      </div>
+      <div class="cell"><span class="badge badge-high"><i class="ti ti-alert-triangle" aria-hidden="true" style="font-size:13px"></i>High</span></div>
+      <div class="cell">
+        <div class="score-bar-wrap" style="width:100%">
+          <div class="score-bar-bg"><div class="score-bar-fill" style="width:78%;background:#BA7517"></div></div>
+          <span class="score-num">78</span>
+        </div>
+      </div>
+      <div class="cell"><span class="status-pill">Awaiting reply</span></div>
+    </div>
+
+    <div class="case-row">
+      <div class="cell cell-num">7</div>
+      <div class="cell cell-info">
+        <span class="case-title">ISP migration AIS→True — NCAP</span>
+        <span class="reason-tag">Active migration in progress, onsite support ongoing — live network change</span>
+      </div>
+      <div class="cell"><span class="badge badge-high"><i class="ti ti-alert-triangle" aria-hidden="true" style="font-size:13px"></i>High</span></div>
+      <div class="cell">
+        <div class="score-bar-wrap" style="width:100%">
+          <div class="score-bar-bg"><div class="score-bar-fill" style="width:75%;background:#BA7517"></div></div>
+          <span class="score-num">75</span>
+        </div>
+      </div>
+      <div class="cell"><span class="status-pill">In progress</span></div>
+    </div>
+
+    <div class="case-row">
+      <div class="cell cell-num">8</div>
+      <div class="cell cell-info">
+        <span class="case-title">HA Decommission & FortiOS Upgrade — IPPS</span>
+        <span class="reason-tag">Scheduled onsite 10 Jun, action plan ready — time-bound upcoming task</span>
+      </div>
+      <div class="cell"><span class="badge badge-high"><i class="ti ti-alert-triangle" aria-hidden="true" style="font-size:13px"></i>High</span></div>
+      <div class="cell">
+        <div class="score-bar-wrap" style="width:100%">
+          <div class="score-bar-bg"><div class="score-bar-fill" style="width:68%;background:#BA7517"></div></div>
+          <span class="score-num">68</span>
+        </div>
+      </div>
+      <div class="cell"><span class="status-pill">In progress</span></div>
+    </div>
+
+    <div class="case-row">
+      <div class="cell cell-num">6</div>
+      <div class="cell cell-info">
+        <span class="case-title">Aruba AP25 claim — Vascular Innovations</span>
+        <span class="reason-tag">Waiting to contact customer — AP down affects user connectivity</span>
+      </div>
+      <div class="cell"><span class="badge badge-medium"><i class="ti ti-info-circle" aria-hidden="true" style="font-size:13px"></i>Medium</span></div>
+      <div class="cell">
+        <div class="score-bar-wrap" style="width:100%">
+          <div class="score-bar-bg"><div class="score-bar-fill" style="width:52%;background:#378ADD"></div></div>
+          <span class="score-num">52</span>
+        </div>
+      </div>
+      <div class="cell"><span class="status-pill">In progress</span></div>
+    </div>
+
+    <div class="case-row">
+      <div class="cell cell-num">3</div>
+      <div class="cell cell-info">
+        <span class="case-title">Firewall policy & power supply — PICO</span>
+        <span class="reason-tag">Report submitted, power supply change done 30 May — mostly resolved</span>
+      </div>
+      <div class="cell"><span class="badge badge-medium"><i class="ti ti-info-circle" aria-hidden="true" style="font-size:13px"></i>Medium</span></div>
+      <div class="cell">
+        <div class="score-bar-wrap" style="width:100%">
+          <div class="score-bar-bg"><div class="score-bar-fill" style="width:40%;background:#378ADD"></div></div>
+          <span class="score-num">40</span>
+        </div>
+      </div>
+      <div class="cell"><span class="status-pill">Report sent</span></div>
+    </div>
+
+    <div class="case-row">
+      <div class="cell cell-num">1</div>
+      <div class="cell cell-info">
+        <span class="case-title">Replace FortiGate 200E — Honda Sriyut</span>
+        <span class="reason-tag">Budget constraint on customer side, date TBD — no active urgency right now</span>
+      </div>
+      <div class="cell"><span class="badge badge-low"><i class="ti ti-check" aria-hidden="true" style="font-size:13px"></i>Low</span></div>
+      <div class="cell">
+        <div class="score-bar-wrap" style="width:100%">
+          <div class="score-bar-bg"><div class="score-bar-fill" style="width:22%;background:#639922"></div></div>
+          <span class="score-num">22</span>
+        </div>
+      </div>
+      <div class="cell"><span class="status-pill">Pending</span></div>
+    </div>
   </div>
 </div>
-
-<script>
-const state = {
-  a: { hp: 100, maxHp: 100, xp: 0, def: 28, defBonus: 0, defRounds: 0, burn: 0, slow: 0, dot: 0, xpGained: 0 },
-  b: { hp: 100, maxHp: 100, xp: 0, def: 18, defBonus: 0, defRounds: 0, burn: 0, slow: 0, dot: 0, xpGained: 0 },
-  round: 1,
-  autoMode: false,
-  autoTimer: null,
-  gameOver: false
-};
-
-const skills = {
-  a: [
-    { name: 'COMPILE BLAST', type: 'dmg', power: 35, effect: null },
-    { name: 'REFACTOR BEAM', type: 'dmg', power: 22, effect: 'dot' },
-    { name: 'CACHE HEAL', type: 'heal', power: 25, effect: null },
-    { name: 'DEBUG NOVA', type: 'dmg', power: 55, effect: 'slow' }
-  ],
-  b: [
-    { name: 'PIXEL STORM', type: 'dmg', power: 45, effect: null },
-    { name: 'SPRITE CURSE', type: 'dmg', power: 18, effect: 'burn' },
-    { name: 'RENDER SHIELD', type: 'def', power: 20, effect: 'shield' },
-    { name: 'PALETTE DRAIN', type: 'drain', power: 20, effect: null }
-  ]
-};
-
-function opponent(who) { return who === 'a' ? 'b' : 'a'; }
-
-function log(msg, type = '') {
-  const el = document.getElementById('battle-log');
-  const line = document.createElement('div');
-  line.className = 'log-line' + (type ? ' ' + type : '');
-  line.textContent = '▶ ' + msg;
-  el.appendChild(line);
-  el.scrollTop = el.scrollHeight;
-  while (el.children.length > 30) el.removeChild(el.firstChild);
-}
-
-function flash(who, color) {
-  const el = document.getElementById('flash-' + who);
-  el.classList.add('flash-active');
-  setTimeout(() => el.classList.remove('flash-active'), 120);
-}
-
-function updateUI() {
-  ['a','b'].forEach(w => {
-    const s = state[w];
-    const pct = Math.max(0, s.hp / s.maxHp * 100);
-    document.getElementById('hp-' + w).style.width = pct + '%';
-    document.getElementById('hp-' + w + '-val').textContent = Math.max(0, s.hp) + ' / ' + s.maxHp;
-    const xpPct = Math.min(100, s.xp / 200 * 100);
-    document.getElementById('xp-' + w).style.width = xpPct + '%';
-    document.getElementById('round-badge').textContent = 'ROUND ' + state.round;
-  });
-}
-
-function dealDamage(target, rawDmg) {
-  const s = state[target];
-  const totalDef = s.def + s.defBonus;
-  const actual = Math.max(1, rawDmg - Math.floor(totalDef * 0.3));
-  s.hp -= actual;
-  flash(target);
-  return actual;
-}
-
-function applyStatusEffects() {
-  ['a','b'].forEach(w => {
-    const s = state[w];
-    if (s.burn > 0) {
-      const dmg = 8;
-      s.hp -= dmg;
-      s.burn--;
-      log('['+w.toUpperCase()+'] BURN deals ' + dmg + ' dmg!', 'dmg');
-    }
-    if (s.dot > 0) {
-      const dmg = 6;
-      s.hp -= dmg;
-      s.dot--;
-      log('['+w.toUpperCase()+'] BLEED deals ' + dmg + ' dmg!', 'dmg');
-    }
-    if (s.defRounds > 0) {
-      s.defRounds--;
-      if (s.defRounds === 0) { s.defBonus = 0; log('['+w.toUpperCase()+'] SHIELD expired!', 'system'); }
-    }
-  });
-}
-
-function gainXP(who, amount) {
-  state[who].xp = Math.min(200, state[who].xp + amount);
-  state[who].xpGained += amount;
-}
-
-function checkWin() {
-  if (state.a.hp <= 0 || state.b.hp <= 0) {
-    state.gameOver = true;
-    if (state.autoMode) stopAuto();
-    const winner = state.a.hp > 0 ? 'CODE AGENT' : 'PIXEL AGENT';
-    log('★ ' + winner + ' WINS! ★ [PRESS RESET]', 'crit');
-    return true;
-  }
-  return false;
-}
-
-function autoAttack(who) {
-  if (state.gameOver) return;
-  const opp = opponent(who);
-  const base = who === 'a' ? 18 : 22;
-  const variance = Math.floor(Math.random() * 10) - 2;
-  const rawDmg = base + variance + (state[who].slow > 0 ? -6 : 0);
-  const actual = dealDamage(opp, rawDmg);
-  if (state[who].slow > 0) { state[who].slow--; }
-  log('[' + who.toUpperCase() + '] BASIC ATTACK → [' + opp.toUpperCase() + '] -' + actual + ' HP', 'dmg');
-  gainXP(who, 8);
-  state.round++;
-  applyStatusEffects();
-  updateUI();
-  checkWin();
-}
-
-function autoSkill(who) {
-  if (state.gameOver) return;
-  const opp = opponent(who);
-  const idx = Math.floor(Math.random() * 4);
-  useSkill(who, idx);
-}
-
-function useSkill(who, idx) {
-  if (state.gameOver) return;
-  const opp = opponent(who);
-  const sk = skills[who][idx];
-  let msg = '[' + who.toUpperCase() + '] uses ' + sk.name + '! ';
-  let type = '';
-
-  if (sk.type === 'dmg') {
-    const actual = dealDamage(opp, sk.power);
-    msg += '→ [' + opp.toUpperCase() + '] -' + actual + ' HP';
-    type = 'dmg';
-    if (sk.effect === 'dot') { state[opp].dot = 3; msg += ' +BLEED(3)'; type = 'crit'; }
-    if (sk.effect === 'slow') { state[who].slow = 0; state[opp].slow = 2; msg += ' +SLOW(2)'; type = 'crit'; }
-    if (sk.effect === 'burn') { state[opp].burn = 3; msg += ' +BURN(3)'; type = 'crit'; }
-    gainXP(who, 15);
-  } else if (sk.type === 'heal') {
-    const heal = sk.power;
-    state[who].hp = Math.min(state[who].maxHp, state[who].hp + heal);
-    flash(who);
-    msg += '+' + heal + ' HP restored';
-    type = 'heal';
-    gainXP(who, 10);
-  } else if (sk.type === 'def') {
-    state[who].defBonus = sk.power;
-    state[who].defRounds = 2;
-    msg += 'DEF +' + sk.power + ' for 2 rounds';
-    type = 'heal';
-    gainXP(who, 10);
-  } else if (sk.type === 'drain') {
-    const actual = dealDamage(opp, sk.power);
-    state[who].hp = Math.min(state[who].maxHp, state[who].hp + actual);
-    flash(opp);
-    msg += 'DRAINED ' + actual + ' HP from [' + opp.toUpperCase() + ']';
-    type = 'crit';
-    gainXP(who, 18);
-  }
-
-  log(msg, type);
-  state.round++;
-  applyStatusEffects();
-  updateUI();
-  checkWin();
-}
-
-function toggleAuto() {
-  if (state.autoMode) stopAuto(); else startAuto();
-}
-
-function startAuto() {
-  state.autoMode = true;
-  document.getElementById('auto-badge').textContent = 'AUTO: ON';
-  document.getElementById('auto-badge').classList.add('on');
-  state.autoTimer = setInterval(() => {
-    if (state.gameOver) { stopAuto(); return; }
-    const attacker = Math.random() < 0.5 ? 'a' : 'b';
-    Math.random() < 0.5 ? autoAttack(attacker) : autoSkill(attacker);
-  }, 800);
-}
-
-function stopAuto() {
-  state.autoMode = false;
-  document.getElementById('auto-badge').textContent = 'AUTO: OFF';
-  document.getElementById('auto-badge').classList.remove('on');
-  if (state.autoTimer) { clearInterval(state.autoTimer); state.autoTimer = null; }
-}
-
-function resetGame() {
-  stopAuto();
-  Object.assign(state.a, { hp: 100, xp: 0, defBonus: 0, defRounds: 0, burn: 0, slow: 0, dot: 0, xpGained: 0 });
-  Object.assign(state.b, { hp: 100, xp: 0, defBonus: 0, defRounds: 0, burn: 0, slow: 0, dot: 0, xpGained: 0 });
-  state.round = 1; state.gameOver = false;
-  document.getElementById('battle-log').innerHTML = '<div class="log-line system">▶ BATTLE RESET. READY!</div>';
-  updateUI();
-}
-
-// Draw pixel sprites
-function drawSprite(canvasId, colors) {
-  const c = document.getElementById(canvasId);
-  const ctx = c.getContext('2d');
-  const px = 3;
-  ctx.clearRect(0, 0, 48, 48);
-  const grid = colors.grid;
-  const pal = colors.palette;
-  for (let y = 0; y < grid.length; y++) {
-    for (let x = 0; x < grid[y].length; x++) {
-      const ci = grid[y][x];
-      if (ci === 0) continue;
-      ctx.fillStyle = pal[ci];
-      ctx.fillRect(x * px, y * px, px, px);
-    }
-  }
-}
-
-const codeAgentSprite = {
-  palette: ['', '#4488ff', '#2255cc', '#88ccff', '#ffdd44', '#ffffff', '#334466', '#aaccff', '#ff4444'],
-  grid: [
-    [0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0],
-    [0,1,3,3,3,3,3,1,1,0,0,0,0,0,0,0],
-    [1,3,5,5,5,5,5,5,1,0,0,0,0,0,0,0],
-    [1,3,5,4,5,4,5,5,1,0,0,0,0,0,0,0],
-    [1,3,5,5,5,5,5,5,1,0,0,0,0,0,0,0],
-    [1,3,5,4,4,4,4,5,1,0,0,0,0,0,0,0],
-    [0,1,3,5,5,5,3,1,0,0,0,0,0,0,0,0],
-    [0,0,1,2,1,2,1,0,0,0,0,0,0,0,0,0],
-    [0,1,2,6,6,6,2,1,0,0,0,0,0,0,0,0],
-    [0,1,6,1,6,1,6,1,0,0,0,0,0,0,0,0],
-    [0,0,1,1,0,1,1,0,0,0,0,0,0,0,0,0],
-    [0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0],
-  ]
-};
-
-const pixelAgentSprite = {
-  palette: ['', '#ff4455', '#cc2233', '#ff8899', '#ffdd44', '#ffffff', '#882233', '#ffaaaa', '#44ff88'],
-  grid: [
-    [0,0,4,4,0,4,4,0,0,0,0,0,0,0,0,0],
-    [0,4,1,1,1,1,1,4,0,0,0,0,0,0,0,0],
-    [4,1,5,5,5,5,5,1,4,0,0,0,0,0,0,0],
-    [4,1,3,5,3,5,3,5,1,0,0,0,0,0,0,0],
-    [4,1,5,5,5,5,5,5,1,0,0,0,0,0,0,0],
-    [4,1,5,8,3,8,3,5,1,0,0,0,0,0,0,0],
-    [0,4,1,5,5,5,1,4,0,0,0,0,0,0,0,0],
-    [0,0,1,2,1,2,1,0,0,0,0,0,0,0,0,0],
-    [0,1,6,2,6,2,6,1,0,0,0,0,0,0,0,0],
-    [0,1,2,6,2,6,2,1,0,0,0,0,0,0,0,0],
-    [0,0,1,1,0,1,1,0,0,0,0,0,0,0,0,0],
-    [0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0],
-  ]
-};
-
-drawSprite('sprite-a', codeAgentSprite);
-drawSprite('sprite-b', pixelAgentSprite);
-updateUI();
-</script>
