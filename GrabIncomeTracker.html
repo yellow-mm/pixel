@@ -213,6 +213,26 @@
   .empty-state { text-align: center; padding: 40px 20px; color: var(--text-3); }
   .empty-state .emoji { font-size: 40px; margin-bottom: 10px; }
 
+  /* CALCULATOR TAB */
+  .calc-card { background: var(--card); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); border: 1px solid var(--border); margin-bottom: 16px; }
+  .calc-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .dist-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .dist-row { display: flex; align-items: center; gap: 8px; }
+  .dist-row input {
+    flex: 1; padding: 10px 12px; border: 1.5px solid var(--border);
+    border-radius: 10px; font-size: 15px; font-family: 'IBM Plex Mono', monospace;
+    background: var(--bg); color: var(--text); outline: none; transition: border-color .2s;
+  }
+  .dist-row input:focus { border-color: var(--green); background: #fff; }
+  .dist-row .plus-label { font-size: 18px; color: var(--text-3); font-weight: 300; width: 16px; text-align: center; flex-shrink: 0; }
+  .dist-row .rm-btn { background: none; border: none; cursor: pointer; color: var(--text-3); font-size: 18px; padding: 4px 6px; border-radius: 7px; transition: all .15s; flex-shrink: 0; }
+  .dist-row .rm-btn:hover { color: var(--red); background: var(--red-light); }
+  .calc-result { background: var(--green-light); border: 1.5px solid var(--border); border-radius: 12px; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .calc-result .res-label { font-size: 13px; color: var(--text-2); font-weight: 500; }
+  .calc-result .res-val { font-size: 26px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; color: var(--green-dark); }
+  .calc-result .res-unit { font-size: 13px; color: var(--text-3); }
+  .calc-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
   .toast {
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
     background: var(--green); color: #fff; padding: 12px 24px; border-radius: 30px;
@@ -261,6 +281,7 @@
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('input')">📝 บันทึกข้อมูล</div>
+  <div class="tab" onclick="switchTab('calc')">📐 คำนวณระยะทาง</div>
   <div class="tab" onclick="switchTab('summary')">📊 สรุปรายเดือน</div>
 </div>
 
@@ -302,6 +323,29 @@
     </div>
     <div id="empty-table" class="empty-state" style="display:none;">
       <div class="emoji">📭</div><p>ยังไม่มีข้อมูล กรุณาเพิ่มข้อมูลด้านบน</p>
+    </div>
+  </div>
+</div>
+
+<!-- CALC TAB -->
+<div id="tab-calc" class="content" style="display:none;">
+  <div class="calc-card">
+    <div class="calc-title">📐 คำนวณระยะทาง</div>
+    <div class="dist-list" id="dist-list"></div>
+    <button class="btn btn-secondary" onclick="addDistRow()" style="margin-bottom:16px;">+ เพิ่มระยะทาง</button>
+    <div class="calc-result">
+      <div>
+        <div class="res-label">ระยะทางรวม</div>
+        <div style="display:flex;align-items:baseline;gap:6px;">
+          <div class="res-val" id="dist-total">0</div>
+          <div class="res-unit">กม.</div>
+        </div>
+      </div>
+      <div id="dist-formula" style="font-size:12px;color:var(--text-3);font-family:'IBM Plex Mono',monospace;text-align:right;max-width:50%;word-break:break-all;"></div>
+    </div>
+    <div class="calc-actions">
+      <button class="btn btn-primary" onclick="useDistTotal()">📋 ใช้ค่านี้ที่ ระยะทาง (กม.)</button>
+      <button class="btn btn-secondary" onclick="clearDist()">🗑 ล้างทั้งหมด</button>
     </div>
   </div>
 </div>
@@ -402,11 +446,68 @@ function showToast(msg, type='green') {
 
 function switchTab(tab) {
   document.getElementById('tab-input').style.display = tab === 'input' ? '' : 'none';
+  document.getElementById('tab-calc').style.display = tab === 'calc' ? '' : 'none';
   document.getElementById('tab-summary').style.display = tab === 'summary' ? '' : 'none';
   document.querySelectorAll('.tab').forEach((el, i) => {
-    el.classList.toggle('active', (i===0&&tab==='input')||(i===1&&tab==='summary'));
+    el.classList.toggle('active',
+      (i===0&&tab==='input') || (i===1&&tab==='calc') || (i===2&&tab==='summary')
+    );
   });
   if (tab === 'summary') renderSummary();
+  if (tab === 'calc' && document.getElementById('dist-list').children.length === 0) {
+    addDistRow(); addDistRow();
+  }
+}
+
+// ─── DISTANCE CALCULATOR ───
+function addDistRow() {
+  const list = document.getElementById('dist-list');
+  const idx = list.children.length;
+  const row = document.createElement('div');
+  row.className = 'dist-row';
+  row.innerHTML = `
+    <span class="plus-label">${idx === 0 ? '' : '+'}</span>
+    <input type="number" step="0.1" min="0" placeholder="0.0" oninput="calcDistTotal()" />
+    <button class="rm-btn" onclick="removeDistRow(this)">✕</button>`;
+  list.appendChild(row);
+  row.querySelector('input').focus();
+  calcDistTotal();
+}
+
+function removeDistRow(btn) {
+  const list = document.getElementById('dist-list');
+  if (list.children.length <= 1) { showToast('⚠️ ต้องมีอย่างน้อย 1 ช่อง','yellow'); return; }
+  btn.closest('.dist-row').remove();
+  // update plus labels
+  [...list.children].forEach((row, i) => {
+    row.querySelector('.plus-label').textContent = i === 0 ? '' : '+';
+  });
+  calcDistTotal();
+}
+
+function calcDistTotal() {
+  const inputs = [...document.querySelectorAll('#dist-list input')];
+  const vals = inputs.map(i => parseFloat(i.value) || 0);
+  const total = vals.reduce((s, v) => s + v, 0);
+  document.getElementById('dist-total').textContent =
+    total % 1 === 0 ? total.toFixed(0) : total.toFixed(2).replace(/\.?0+$/, '');
+  const formula = vals.filter(v => v > 0).join(' + ');
+  document.getElementById('dist-formula').textContent = formula ? formula + ' = ' + (total % 1 === 0 ? total : total.toFixed(2)) : '';
+}
+
+function useDistTotal() {
+  const total = parseFloat(document.getElementById('dist-total').textContent) || 0;
+  if (!total) { showToast('⚠️ ยังไม่มีระยะทาง','yellow'); return; }
+  document.getElementById('inp-dist').value = total;
+  switchTab('input');
+  showToast(`✅ ใส่ระยะทาง ${total} กม. แล้ว`);
+  document.getElementById('inp-dist').focus();
+}
+
+function clearDist() {
+  document.getElementById('dist-list').innerHTML = '';
+  addDistRow(); addDistRow();
+  showToast('🗑 ล้างระยะทางแล้ว');
 }
 
 // ─── ADD / SAVE ───
