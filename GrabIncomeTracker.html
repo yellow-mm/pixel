@@ -241,6 +241,15 @@
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
 
+  /* LOADING BAR */
+  .loading-bar {
+    position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 9999;
+    background: linear-gradient(90deg, var(--green), #7fffc4, var(--green));
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite;
+  }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
   @media (max-width: 480px) {
     .cards { grid-template-columns: 1fr 1fr; }
     .form-grid { grid-template-columns: 1fr 1fr; }
@@ -250,6 +259,7 @@
 </style>
 </head>
 <body>
+<div class="loading-bar" id="loading-bar" style="display:none;"></div>
 <div class="app-layout">
 
 <!-- SIDEBAR -->
@@ -422,51 +432,86 @@
 
 <div class="toast" id="toast"></div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue, push, remove, update }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ─── FIREBASE INIT ───
+const firebaseConfig = {
+  apiKey: "AIzaSyCnEp_yZPNKaWGxe2F5b5UQvUMTcwNVLhk",
+  authDomain: "grab-tracker-ea14b.firebaseapp.com",
+  databaseURL: "https://grab-tracker-ea14b-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "grab-tracker-ea14b",
+  storageBucket: "grab-tracker-ea14b.firebasestorage.app",
+  messagingSenderId: "914841797920",
+  appId: "1:914841797920:web:3ef111262a65276821c345"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const recordsRef = ref(db, 'records');
+
+// ─── STATE ───
 const MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 const MONTHS_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-let records = JSON.parse(localStorage.getItem('grab_records') || '[]');
-let editIdx = -1;
-let deleteIdx = -1;
+let records = [];
+let editKey = null;
+let deleteKey = null;
 let currentMonthKey = null;
 
-function save() { localStorage.setItem('grab_records', JSON.stringify(records)); }
-function fmt(n) { return Number(n).toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2}); }
-function fmtInt(n) { return Number(n).toLocaleString('th-TH'); }
-function calcOil(dist, kpl, ppl) { if (!dist || !kpl) return 0; return (dist / kpl) * ppl; }
+// ─── HELPERS ───
+const fmt = n => Number(n).toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtInt = n => Number(n).toLocaleString('th-TH');
+const calcOil = (dist, kpl, ppl) => (!dist || !kpl) ? 0 : (dist / kpl) * ppl;
 
 function showToast(msg, type='green') {
   const t = document.getElementById('toast');
   t.textContent = msg;
-  t.style.background = type === 'red' ? 'var(--red)' : type === 'yellow' ? 'var(--yellow)' : 'var(--green)';
+  t.style.background = type==='red' ? 'var(--red)' : type==='yellow' ? 'var(--yellow)' : 'var(--green)';
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-function switchTab(tab) {
-  document.getElementById('tab-input').style.display = tab === 'input' ? '' : 'none';
-  document.getElementById('tab-calc').style.display = tab === 'calc' ? '' : 'none';
-  document.getElementById('tab-summary').style.display = tab === 'summary' ? '' : 'none';
-  document.querySelectorAll('.tab').forEach((el, i) => {
+function showLoading(on) {
+  document.getElementById('loading-bar').style.display = on ? '' : 'none';
+}
+
+// ─── FIREBASE LISTENER (real-time) ───
+onValue(recordsRef, (snapshot) => {
+  records = [];
+  snapshot.forEach(child => {
+    records.push({ _key: child.key, ...child.val() });
+  });
+  records.sort((a,b) => a.date.localeCompare(b.date));
+  renderAll();
+  if (currentMonthKey) showMonthDetailByKey(currentMonthKey);
+  showLoading(false);
+});
+
+// ─── TABS ───
+window.switchTab = function(tab) {
+  document.getElementById('tab-input').style.display = tab==='input' ? '' : 'none';
+  document.getElementById('tab-calc').style.display = tab==='calc' ? '' : 'none';
+  document.getElementById('tab-summary').style.display = tab==='summary' ? '' : 'none';
+  document.querySelectorAll('.tab').forEach((el,i) => {
     el.classList.toggle('active',
-      (i===0&&tab==='input') || (i===1&&tab==='calc') || (i===2&&tab==='summary')
+      (i===0&&tab==='input')||(i===1&&tab==='calc')||(i===2&&tab==='summary')
     );
   });
-  if (tab === 'summary') renderSummary();
-  if (tab === 'calc' && document.getElementById('dist-list').children.length === 0) {
+  if (tab==='summary') renderSummary();
+  if (tab==='calc' && document.getElementById('dist-list').children.length===0) {
     addDistRow(); addDistRow();
   }
 }
 
 // ─── DISTANCE CALCULATOR ───
-function addDistRow() {
+window.addDistRow = function() {
   const list = document.getElementById('dist-list');
   const idx = list.children.length;
   const row = document.createElement('div');
   row.className = 'dist-row';
   row.innerHTML = `
-    <span class="plus-label">${idx === 0 ? '' : '+'}</span>
+    <span class="plus-label">${idx===0?'':'+'}</span>
     <input type="number" step="0.1" min="0" placeholder="0.0" oninput="calcDistTotal()" />
     <button class="rm-btn" onclick="removeDistRow(this)">✕</button>`;
   list.appendChild(row);
@@ -474,61 +519,54 @@ function addDistRow() {
   calcDistTotal();
 }
 
-function removeDistRow(btn) {
+window.removeDistRow = function(btn) {
   const list = document.getElementById('dist-list');
   if (list.children.length <= 1) { showToast('⚠️ ต้องมีอย่างน้อย 1 ช่อง','yellow'); return; }
   btn.closest('.dist-row').remove();
-  // update plus labels
-  [...list.children].forEach((row, i) => {
-    row.querySelector('.plus-label').textContent = i === 0 ? '' : '+';
-  });
+  [...list.children].forEach((row,i) => { row.querySelector('.plus-label').textContent = i===0?'':'+'; });
   calcDistTotal();
 }
 
-function calcDistTotal() {
-  const inputs = [...document.querySelectorAll('#dist-list input')];
-  const vals = inputs.map(i => parseFloat(i.value) || 0);
-  const total = vals.reduce((s, v) => s + v, 0);
-  document.getElementById('dist-total').textContent =
-    total % 1 === 0 ? total.toFixed(0) : total.toFixed(2).replace(/\.?0+$/, '');
-  const formula = vals.filter(v => v > 0).join(' + ');
-  document.getElementById('dist-formula').textContent = formula ? formula + ' = ' + (total % 1 === 0 ? total : total.toFixed(2)) : '';
+window.calcDistTotal = function() {
+  const vals = [...document.querySelectorAll('#dist-list input')].map(i => parseFloat(i.value)||0);
+  const total = vals.reduce((s,v)=>s+v,0);
+  document.getElementById('dist-total').textContent = total%1===0 ? total.toFixed(0) : total.toFixed(2).replace(/\.?0+$/,'');
+  const formula = vals.filter(v=>v>0).join(' + ');
+  document.getElementById('dist-formula').textContent = formula ? formula+' = '+(total%1===0?total:total.toFixed(2)) : '';
 }
 
-function useDistTotal() {
-  const total = parseFloat(document.getElementById('dist-total').textContent) || 0;
+window.useDistTotal = function() {
+  const total = parseFloat(document.getElementById('dist-total').textContent)||0;
   if (!total) { showToast('⚠️ ยังไม่มีระยะทาง','yellow'); return; }
   document.getElementById('inp-dist').value = total;
   switchTab('input');
   showToast(`✅ ใส่ระยะทาง ${total} กม. แล้ว`);
-  document.getElementById('inp-dist').focus();
 }
 
-function clearDist() {
+window.clearDist = function() {
   document.getElementById('dist-list').innerHTML = '';
   addDistRow(); addDistRow();
   showToast('🗑 ล้างระยะทางแล้ว');
 }
 
-// ─── ADD / SAVE ───
-function saveRecord() {
+// ─── SAVE RECORD ───
+window.saveRecord = async function() {
   const date = document.getElementById('inp-date').value;
-  const income = parseFloat(document.getElementById('inp-income').value) || 0;
-  const dist = parseFloat(document.getElementById('inp-dist').value) || 0;
-  const kpl = parseFloat(document.getElementById('inp-kpl').value) || 21;
-  const ppl = parseFloat(document.getElementById('inp-ppl').value) || 29;
+  const income = parseFloat(document.getElementById('inp-income').value)||0;
+  const dist = parseFloat(document.getElementById('inp-dist').value)||0;
+  const kpl = parseFloat(document.getElementById('inp-kpl').value)||21;
+  const ppl = parseFloat(document.getElementById('inp-ppl').value)||29;
   if (!date) { showToast('⚠️ กรุณาเลือกวันที่','yellow'); return; }
   if (!income) { showToast('⚠️ กรุณากรอกรายได้','yellow'); return; }
   const oil = calcOil(dist, kpl, ppl);
-  const rec = { date, income, dist, kpl, ppl, oil, profit: income - oil };
-  records.push(rec);
-  records.sort((a,b) => a.date.localeCompare(b.date));
-  save(); renderAll(); cancelEdit();
+  showLoading(true);
+  await push(recordsRef, { date, income, dist, kpl, ppl, oil, profit: income-oil });
+  cancelEdit();
   showToast('✅ บันทึกข้อมูลเรียบร้อย');
 }
 
-function cancelEdit() {
-  editIdx = -1;
+window.cancelEdit = function() {
+  editKey = null;
   document.getElementById('main-form-card').classList.remove('edit-mode');
   document.getElementById('form-title-text').textContent = '➕ เพิ่มข้อมูลใหม่';
   document.getElementById('save-btn').textContent = '💾 บันทึก';
@@ -540,9 +578,9 @@ function cancelEdit() {
 }
 
 // ─── EDIT MODAL ───
-function openEditModal(idx) {
-  editIdx = idx;
-  const r = records[idx];
+window.openEditModal = function(key) {
+  editKey = key;
+  const r = records.find(r=>r._key===key);
   document.getElementById('m-date').value = r.date;
   document.getElementById('m-income').value = r.income;
   document.getElementById('m-dist').value = r.dist;
@@ -551,57 +589,49 @@ function openEditModal(idx) {
   document.getElementById('edit-modal').classList.add('show');
 }
 
-function closeModal() {
+window.closeModal = function() {
   document.getElementById('edit-modal').classList.remove('show');
-  editIdx = -1;
+  editKey = null;
 }
 
-function saveModal() {
-  if (editIdx < 0) return;
+window.saveModal = async function() {
+  if (!editKey) return;
   const date = document.getElementById('m-date').value;
-  const income = parseFloat(document.getElementById('m-income').value) || 0;
-  const dist = parseFloat(document.getElementById('m-dist').value) || 0;
-  const kpl = parseFloat(document.getElementById('m-kpl').value) || 21;
-  const ppl = parseFloat(document.getElementById('m-ppl').value) || 29;
+  const income = parseFloat(document.getElementById('m-income').value)||0;
+  const dist = parseFloat(document.getElementById('m-dist').value)||0;
+  const kpl = parseFloat(document.getElementById('m-kpl').value)||21;
+  const ppl = parseFloat(document.getElementById('m-ppl').value)||29;
   if (!date) { showToast('⚠️ กรุณาเลือกวันที่','yellow'); return; }
   const oil = calcOil(dist, kpl, ppl);
-  records[editIdx] = { date, income, dist, kpl, ppl, oil, profit: income - oil };
-  records.sort((a,b) => a.date.localeCompare(b.date));
-  save(); renderAll();
-  if (currentMonthKey) showMonthDetailByKey(currentMonthKey);
+  showLoading(true);
+  await update(ref(db,'records/'+editKey), { date, income, dist, kpl, ppl, oil, profit: income-oil });
   closeModal();
   showToast('✏️ แก้ไขข้อมูลเรียบร้อย','yellow');
 }
 
 // ─── DELETE MODAL ───
-function openDeleteModal(idx) {
-  deleteIdx = idx;
-  const r = records[idx];
+window.openDeleteModal = function(key) {
+  deleteKey = key;
+  const r = records.find(r=>r._key===key);
   const d = new Date(r.date);
   const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()+543}`;
   document.getElementById('del-msg').textContent = `ต้องการลบข้อมูลวันที่ ${dateStr} รายได้ ฿${fmt(r.income)} ใช่หรือไม่?`;
   document.getElementById('del-modal').classList.add('show');
 }
 
-function closeDelModal() {
+window.closeDelModal = function() {
   document.getElementById('del-modal').classList.remove('show');
-  deleteIdx = -1;
+  deleteKey = null;
 }
 
-function confirmDelete() {
-  if (deleteIdx < 0) return;
-  records.splice(deleteIdx, 1);
-  save(); renderAll();
-  if (currentMonthKey) {
-    const recs = records.filter(r => r.date.startsWith(currentMonthKey));
-    if (recs.length) showMonthDetailByKey(currentMonthKey);
-    else document.getElementById('month-detail-section').style.display = 'none';
-  }
+window.confirmDelete = async function() {
+  if (!deleteKey) return;
+  showLoading(true);
+  await remove(ref(db,'records/'+deleteKey));
   closeDelModal();
   showToast('🗑 ลบข้อมูลแล้ว','red');
 }
 
-// Close modals on overlay click
 document.getElementById('edit-modal').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
 document.getElementById('del-modal').addEventListener('click', function(e){ if(e.target===this) closeDelModal(); });
 
@@ -637,8 +667,7 @@ function renderOverviewCards() {
 
 function renderTable() {
   const filterMonth = document.getElementById('filter-month').value;
-  let filtered = filterMonth === 'all' ? records : records.filter(r=>r.date.startsWith(filterMonth));
-
+  let filtered = filterMonth==='all' ? records : records.filter(r=>r.date.startsWith(filterMonth));
   const months = [...new Set(records.map(r=>r.date.slice(0,7)))].sort();
   const sel = document.getElementById('filter-month');
   const cur = sel.value;
@@ -646,10 +675,8 @@ function renderTable() {
     const [y,mo] = m.split('-');
     return `<option value="${m}" ${m===cur?'selected':''}>${MONTHS[parseInt(mo)-1]} ${parseInt(y)+543}</option>`;
   }).join('');
-
   document.getElementById('empty-table').style.display = filtered.length ? 'none' : '';
   document.getElementById('records-body').innerHTML = filtered.map(r => {
-    const realIdx = records.indexOf(r);
     const d = new Date(r.date);
     const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()+543}`;
     return `<tr>
@@ -662,45 +689,40 @@ function renderTable() {
       <td class="mono ${r.profit>=0?'profit-pos':'profit-neg'}">฿${fmt(r.profit)}</td>
       <td>
         <div class="action-btns">
-          <button class="icon-btn edit" onclick="openEditModal(${realIdx})" title="แก้ไข">✏️</button>
-          <button class="icon-btn del" onclick="openDeleteModal(${realIdx})" title="ลบ">🗑</button>
+          <button class="icon-btn edit" onclick="openEditModal('${r._key}')" title="แก้ไข">✏️</button>
+          <button class="icon-btn del" onclick="openDeleteModal('${r._key}')" title="ลบ">🗑</button>
         </div>
       </td>
     </tr>`;
   }).join('');
 }
 
-function renderSummary() {
+window.renderSummary = function() {
   const totalIncome = records.reduce((s,r)=>s+r.income,0);
   const totalOil = records.reduce((s,r)=>s+r.oil,0);
   const totalProfit = records.reduce((s,r)=>s+r.profit,0);
   const totalDist = records.reduce((s,r)=>s+r.dist,0);
   const workDays = records.filter(r=>r.income>0).length;
-
   document.getElementById('year-bar').innerHTML = `
     <div class="year-bar-item"><div class="yb-label">รายได้รวม</div><div class="yb-val" style="color:var(--green-dark);">฿${fmtInt(Math.round(totalIncome))}</div></div>
     <div class="year-bar-item"><div class="yb-label">ค่าน้ำมัน</div><div class="yb-val" style="color:var(--red);">฿${fmtInt(Math.round(totalOil))}</div></div>
     <div class="year-bar-item"><div class="yb-label">กำไรสุทธิ</div><div class="yb-val" style="color:var(--green-dark);">฿${fmtInt(Math.round(totalProfit))}</div></div>
     <div class="year-bar-item"><div class="yb-label">วันทำงาน</div><div class="yb-val">${workDays} วัน</div></div>
     <div class="year-bar-item"><div class="yb-label">ระยะทาง</div><div class="yb-val">${fmtInt(Math.round(totalDist))} กม.</div></div>`;
-
   document.getElementById('month-list').innerHTML = MONTHS.map((m,idx) => {
     const mo = String(idx+1).padStart(2,'0');
     const key = `2026-${mo}`;
     const recs = records.filter(r=>r.date.startsWith(key));
     const inc = recs.reduce((s,r)=>s+r.income,0);
     const hasData = recs.length > 0;
-    return `<div class="month-row ${!hasData?'no-data':''} ${currentMonthKey===key?'selected':''}" onclick="${hasData?`showMonthDetail(event,'${key}','${m}')` : ''}">
-      <div>
-        <div class="mr-name">${MONTHS_EN[idx]}</div>
-        <div class="mr-inc">${hasData?'฿'+fmtInt(Math.round(inc)):'—'}</div>
-      </div>
+    return `<div class="month-row ${!hasData?'no-data':''} ${currentMonthKey===key?'selected':''}" onclick="${hasData?`showMonthDetail(event,'${key}','${m}')`:'' }">
+      <div><div class="mr-name">${MONTHS_EN[idx]}</div><div class="mr-inc">${hasData?'฿'+fmtInt(Math.round(inc)):'—'}</div></div>
       <div class="mr-dot"></div>
     </div>`;
   }).join('');
 }
 
-function showMonthDetail(e, key, monthName) {
+window.showMonthDetail = function(e, key, monthName) {
   document.querySelectorAll('.month-row').forEach(el=>el.classList.remove('selected'));
   e.currentTarget.classList.add('selected');
   currentMonthKey = key;
@@ -714,7 +736,6 @@ function showMonthDetailByKey(key, monthName) {
     document.getElementById('month-empty-panel').style.display='';
     return;
   }
-
   const [y,mo] = key.split('-');
   if (!monthName) monthName = MONTHS[parseInt(mo)-1];
   const inc = recs.reduce((s,r)=>s+r.income,0);
@@ -723,7 +744,6 @@ function showMonthDetailByKey(key, monthName) {
   const dist = recs.reduce((s,r)=>s+r.dist,0);
   const days = recs.filter(r=>r.income>0).length;
   const avgDay = days ? inc/days : 0;
-
   document.getElementById('detail-title').textContent = `${monthName} ${parseInt(y)+543}`;
   document.getElementById('detail-stats').innerHTML = `
     <div class="stat-box"><div class="s-label">รายได้รวม</div><div class="s-val" style="color:var(--green-dark);">฿${fmtInt(Math.round(inc))}</div></div>
@@ -732,9 +752,7 @@ function showMonthDetailByKey(key, monthName) {
     <div class="stat-box"><div class="s-label">วันทำงาน</div><div class="s-val">${days} วัน</div></div>
     <div class="stat-box"><div class="s-label">ระยะทาง</div><div class="s-val">${fmtInt(Math.round(dist))} กม.</div></div>
     <div class="stat-box"><div class="s-label">เฉลี่ย/วัน</div><div class="s-val">฿${fmtInt(Math.round(avgDay))}</div></div>`;
-
   document.getElementById('detail-body').innerHTML = recs.map(r => {
-    const realIdx = records.indexOf(r);
     const d = new Date(r.date);
     const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
     return `<tr>
@@ -745,21 +763,21 @@ function showMonthDetailByKey(key, monthName) {
       <td class="mono ${r.profit>=0?'profit-pos':'profit-neg'}">฿${fmt(r.profit)}</td>
       <td>
         <div class="action-btns">
-          <button class="icon-btn edit" onclick="openEditModal(${realIdx})" title="แก้ไข">✏️</button>
-          <button class="icon-btn del" onclick="openDeleteModal(${realIdx})" title="ลบ">🗑</button>
+          <button class="icon-btn edit" onclick="openEditModal('${r._key}')" title="แก้ไข">✏️</button>
+          <button class="icon-btn del" onclick="openDeleteModal('${r._key}')" title="ลบ">🗑</button>
         </div>
       </td>
     </tr>`;
   }).join('');
-
   document.getElementById('month-empty-panel').style.display = 'none';
   document.getElementById('month-detail-section').style.display = '';
 }
 
 function renderAll() { renderOverviewCards(); renderTable(); }
 
+// ─── INIT ───
 document.getElementById('inp-date').value = new Date().toISOString().slice(0,10);
-renderAll();
+showLoading(true);
 </script>
 </div><!-- app-body -->
 </div><!-- app-layout -->
