@@ -621,7 +621,7 @@ window.openDeleteModal = function(key) {
   deleteKey = key;
   const r = records.find(r=>r._key===key);
   const d = new Date(r.date);
-  const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  const dateStr = `${d.getDate()} ${MONTHS_EN[d.getMonth()]} ${d.getFullYear()}`;
   document.getElementById('del-msg').textContent = `ต้องการลบข้อมูลวันที่ ${dateStr} รายได้ ฿${fmt(r.income)} ใช่หรือไม่?`;
   document.getElementById('del-modal').classList.add('show');
 }
@@ -680,12 +680,12 @@ function renderTable() {
   const cur = sel.value;
   sel.innerHTML = '<option value="all">ทุกเดือน</option>' + months.map(m => {
     const [y,mo] = m.split('-');
-    return `<option value="${m}" ${m===cur?'selected':''}>${MONTHS[parseInt(mo)-1]} ${y}</option>`;
+    return `<option value="${m}" ${m===cur?'selected':''}>${MONTHS_EN[parseInt(mo)-1]} ${y}</option>`;
   }).join('');
   document.getElementById('empty-table').style.display = filtered.length ? 'none' : '';
   document.getElementById('records-body').innerHTML = filtered.map(r => {
     const d = new Date(r.date);
-    const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    const dateStr = `${d.getDate()} ${MONTHS_EN[d.getMonth()]} ${d.getFullYear()}`;
     return `<tr>
       <td>${dateStr}</td>
       <td class="mono">฿${fmt(r.income)}</td>
@@ -755,7 +755,7 @@ window.renderSummary = function() {
     const recs = records.filter(r=>r.date.startsWith(key));
     const inc = recs.reduce((s,r)=>s+r.income,0);
     const hasData = recs.length > 0;
-    return `<div class="month-row ${!hasData?'no-data':''} ${currentMonthKey===key?'selected':''}" onclick="${hasData?`showMonthDetail(event,'${key}','${m}')`:'' }">
+    return `<div class="month-row ${!hasData?'no-data':''} ${currentMonthKey===key?'selected':''}" onclick="${hasData?`showMonthDetail(event,'${key}','${MONTHS_EN[idx]}')`:'' }">
       <div><div class="mr-name">${MONTHS_EN[idx]}</div><div class="mr-inc">${hasData?'฿'+fmtInt(Math.round(inc)):'—'}</div></div>
       <div class="mr-dot"></div>
     </div>`;
@@ -784,7 +784,7 @@ function showMonthDetailByKey(key, monthName) {
     return;
   }
   const [y,mo] = key.split('-');
-  if (!monthName) monthName = MONTHS[parseInt(mo)-1];
+  if (!monthName) monthName = MONTHS_EN[parseInt(mo)-1];
   const inc = recs.reduce((s,r)=>s+r.income,0);
   const oil = recs.reduce((s,r)=>s+r.oil,0);
   const profit = recs.reduce((s,r)=>s+r.profit,0);
@@ -801,7 +801,7 @@ function showMonthDetailByKey(key, monthName) {
     <div class="stat-box"><div class="s-label">เฉลี่ย/วัน</div><div class="s-val">฿${fmtInt(Math.round(avgDay))}</div></div>`;
   document.getElementById('detail-body').innerHTML = recs.map(r => {
     const d = new Date(r.date);
-    const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+    const dateStr = `${d.getDate()} ${MONTHS_EN[d.getMonth()]}`;
     return `<tr>
       <td>${dateStr}</td>
       <td class="mono">฿${fmt(r.income)}</td>
