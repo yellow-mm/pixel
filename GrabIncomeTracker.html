@@ -285,7 +285,7 @@
   <div class="logo">🚗</div>
   <div>
     <h1>Grab Income Tracker</h1>
-    <p>บันทึกรายได้ & วิเคราะห์ข้อมูล 2026</p>
+    <p>บันทึกรายได้ & วิเคราะห์ข้อมูล</p>
   </div>
 </header>
 
@@ -363,7 +363,13 @@
 <!-- SUMMARY TAB -->
 <div id="tab-summary" class="content" style="display:none;">
 
-  <!-- Year totals bar -->
+  <!-- Year selector + totals bar -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+    <button onclick="changeYear(-1)" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:16px;color:var(--text-2);">◀</button>
+    <div id="year-label" style="font-size:16px;font-weight:700;min-width:80px;text-align:center;"></div>
+    <button onclick="changeYear(1)" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:16px;color:var(--text-2);">▶</button>
+    <select id="year-select" onchange="selectYear(this.value)" style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;background:var(--bg);color:var(--text);outline:none;"></select>
+  </div>
   <div class="year-bar" id="year-bar" style="margin-bottom:14px;"></div>
 
   <!-- 2-col layout -->
@@ -458,6 +464,7 @@ let records = [];
 let editKey = null;
 let deleteKey = null;
 let currentMonthKey = null;
+let selectedYear = new Date().getFullYear();
 
 // ─── HELPERS ───
 const fmt = n => Number(n).toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -697,21 +704,54 @@ function renderTable() {
   }).join('');
 }
 
+// ─── YEAR HELPERS ───
+function getAvailableYears() {
+  const years = [...new Set(records.map(r => r.date.slice(0,4)))].sort();
+  const thisYear = String(new Date().getFullYear());
+  if (!years.includes(thisYear)) years.push(thisYear);
+  return years.sort();
+}
+
+window.changeYear = function(delta) {
+  const years = getAvailableYears();
+  const idx = years.indexOf(String(selectedYear));
+  const newIdx = Math.max(0, Math.min(years.length-1, idx+delta));
+  selectedYear = parseInt(years[newIdx]);
+  currentMonthKey = null;
+  renderSummary();
+}
+
+window.selectYear = function(val) {
+  selectedYear = parseInt(val);
+  currentMonthKey = null;
+  renderSummary();
+}
+
 window.renderSummary = function() {
-  const totalIncome = records.reduce((s,r)=>s+r.income,0);
-  const totalOil = records.reduce((s,r)=>s+r.oil,0);
-  const totalProfit = records.reduce((s,r)=>s+r.profit,0);
-  const totalDist = records.reduce((s,r)=>s+r.dist,0);
-  const workDays = records.filter(r=>r.income>0).length;
+  const yearStr = String(selectedYear);
+  const yearRecs = records.filter(r => r.date.startsWith(yearStr));
+
+  // update year selector
+  const years = getAvailableYears();
+  const sel = document.getElementById('year-select');
+  sel.innerHTML = years.map(y => `<option value="${y}" ${y===yearStr?'selected':''}>${parseInt(y)+543}</option>`).join('');
+  document.getElementById('year-label').textContent = `${selectedYear+543}`;
+
+  const totalIncome = yearRecs.reduce((s,r)=>s+r.income,0);
+  const totalOil = yearRecs.reduce((s,r)=>s+r.oil,0);
+  const totalProfit = yearRecs.reduce((s,r)=>s+r.profit,0);
+  const totalDist = yearRecs.reduce((s,r)=>s+r.dist,0);
+  const workDays = yearRecs.filter(r=>r.income>0).length;
   document.getElementById('year-bar').innerHTML = `
     <div class="year-bar-item"><div class="yb-label">รายได้รวม</div><div class="yb-val" style="color:var(--green-dark);">฿${fmtInt(Math.round(totalIncome))}</div></div>
     <div class="year-bar-item"><div class="yb-label">ค่าน้ำมัน</div><div class="yb-val" style="color:var(--red);">฿${fmtInt(Math.round(totalOil))}</div></div>
     <div class="year-bar-item"><div class="yb-label">กำไรสุทธิ</div><div class="yb-val" style="color:var(--green-dark);">฿${fmtInt(Math.round(totalProfit))}</div></div>
     <div class="year-bar-item"><div class="yb-label">วันทำงาน</div><div class="yb-val">${workDays} วัน</div></div>
     <div class="year-bar-item"><div class="yb-label">ระยะทาง</div><div class="yb-val">${fmtInt(Math.round(totalDist))} กม.</div></div>`;
+
   document.getElementById('month-list').innerHTML = MONTHS.map((m,idx) => {
     const mo = String(idx+1).padStart(2,'0');
-    const key = `2026-${mo}`;
+    const key = `${yearStr}-${mo}`;
     const recs = records.filter(r=>r.date.startsWith(key));
     const inc = recs.reduce((s,r)=>s+r.income,0);
     const hasData = recs.length > 0;
@@ -720,6 +760,13 @@ window.renderSummary = function() {
       <div class="mr-dot"></div>
     </div>`;
   }).join('');
+
+  // reset detail panel if month not in selected year
+  if (currentMonthKey && !currentMonthKey.startsWith(yearStr)) {
+    currentMonthKey = null;
+    document.getElementById('month-detail-section').style.display='none';
+    document.getElementById('month-empty-panel').style.display='';
+  }
 }
 
 window.showMonthDetail = function(e, key, monthName) {
