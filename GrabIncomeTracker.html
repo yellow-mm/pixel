@@ -621,7 +621,7 @@ window.openDeleteModal = function(key) {
   deleteKey = key;
   const r = records.find(r=>r._key===key);
   const d = new Date(r.date);
-  const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()+543}`;
+  const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
   document.getElementById('del-msg').textContent = `ต้องการลบข้อมูลวันที่ ${dateStr} รายได้ ฿${fmt(r.income)} ใช่หรือไม่?`;
   document.getElementById('del-modal').classList.add('show');
 }
@@ -680,12 +680,12 @@ function renderTable() {
   const cur = sel.value;
   sel.innerHTML = '<option value="all">ทุกเดือน</option>' + months.map(m => {
     const [y,mo] = m.split('-');
-    return `<option value="${m}" ${m===cur?'selected':''}>${MONTHS[parseInt(mo)-1]} ${parseInt(y)+543}</option>`;
+    return `<option value="${m}" ${m===cur?'selected':''}>${MONTHS[parseInt(mo)-1]} ${y}</option>`;
   }).join('');
   document.getElementById('empty-table').style.display = filtered.length ? 'none' : '';
   document.getElementById('records-body').innerHTML = filtered.map(r => {
     const d = new Date(r.date);
-    const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()+543}`;
+    const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
     return `<tr>
       <td>${dateStr}</td>
       <td class="mono">฿${fmt(r.income)}</td>
@@ -734,8 +734,8 @@ window.renderSummary = function() {
   // update year selector
   const years = getAvailableYears();
   const sel = document.getElementById('year-select');
-  sel.innerHTML = years.map(y => `<option value="${y}" ${y===yearStr?'selected':''}>${parseInt(y)+543}</option>`).join('');
-  document.getElementById('year-label').textContent = `${selectedYear+543}`;
+  sel.innerHTML = years.map(y => `<option value="${y}" ${y===yearStr?'selected':''}>${y}</option>`).join('');
+  document.getElementById('year-label').textContent = `${selectedYear}`;
 
   const totalIncome = yearRecs.reduce((s,r)=>s+r.income,0);
   const totalOil = yearRecs.reduce((s,r)=>s+r.oil,0);
@@ -791,7 +791,7 @@ function showMonthDetailByKey(key, monthName) {
   const dist = recs.reduce((s,r)=>s+r.dist,0);
   const days = recs.filter(r=>r.income>0).length;
   const avgDay = days ? inc/days : 0;
-  document.getElementById('detail-title').textContent = `${monthName} ${parseInt(y)+543}`;
+  document.getElementById('detail-title').textContent = `${monthName} ${y}`;
   document.getElementById('detail-stats').innerHTML = `
     <div class="stat-box"><div class="s-label">รายได้รวม</div><div class="s-val" style="color:var(--green-dark);">฿${fmtInt(Math.round(inc))}</div></div>
     <div class="stat-box"><div class="s-label">ค่าน้ำมัน</div><div class="s-val" style="color:var(--red);">฿${fmtInt(Math.round(oil))}</div></div>
