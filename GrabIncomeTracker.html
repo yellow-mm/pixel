@@ -267,11 +267,16 @@
   <div class="sidebar-logo">Dashboard <span>/ App</span></div>
   <div class="nav-section">
     <div class="nav-label">Menu</div>
-    <a class="nav-item" href="index.html"><span class="ni">⊞</span> หน้าหลัก</a>
-    <a class="nav-item active" href="GrabIncomeTracker.html"><span class="ni">🚗</span> Grab Tracker</a>
-    <a class="nav-item" href="OTTravel.html"><span class="ni">⏱</span> OT & Travel</a>
+    <a class="nav-item" href="index.html">
+      <span class="nav-icon">⊞</span> หน้าหลัก
+    </a>
+    <a class="nav-item active" href="GrabIncomeTracker.html">
+      <span class="nav-icon">🚗</span> Grab Tracker
+    </a>
   </div>
-  <div class="sidebar-footer"><p>yellow-mm / pixel<br>github.io</p></div>
+  <div class="sidebar-footer">
+    <p>yellow-mm / pixel<br>github.io</p>
+  </div>
 </aside>
 
 <div class="app-body">
@@ -480,10 +485,8 @@ function showLoading(on) {
 
 // ─── FIREBASE LISTENER (real-time) ───
 onValue(recordsRef, (snapshot) => {
-  records = [];
-  snapshot.forEach(child => {
-    records.push({ _key: child.key, ...child.val() });
-  });
+  const raw = snapshot.val();
+  records = raw ? Object.entries(raw).map(([k,v])=>({_key:k,...v})) : [];
   records.sort((a,b) => a.date.localeCompare(b.date));
   renderAll();
   if (currentMonthKey) showMonthDetailByKey(currentMonthKey);

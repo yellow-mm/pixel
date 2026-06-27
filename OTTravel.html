@@ -423,8 +423,8 @@ let otLoaded = false;
 
 onValue(travelRef, snap => {
   try {
-    travels = [];
-    snap.forEach(c => travels.push({_key:c.key,...c.val()}));
+    const raw = snap.val();
+    travels = raw ? Object.entries(raw).map(([k,v])=>({_key:k,...v})) : [];
     travels.sort((a,b)=>a.date.localeCompare(b.date));
     console.log('travels loaded:', travels.length, travels.map(r=>r.date));
     travelLoaded = true;
@@ -436,8 +436,8 @@ onValue(travelRef, snap => {
 
 onValue(otRef, snap => {
   try {
-    otRecords = [];
-    snap.forEach(c => otRecords.push({_key:c.key,...c.val()}));
+    const raw = snap.val();
+    otRecords = raw ? Object.entries(raw).map(([k,v])=>({_key:k,...v})) : [];
     otRecords.sort((a,b)=>a.date.localeCompare(b.date));
     otLoaded = true;
     renderOTTable();
