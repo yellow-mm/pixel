@@ -426,6 +426,7 @@ onValue(travelRef, snap => {
     travels = [];
     snap.forEach(c => travels.push({_key:c.key,...c.val()}));
     travels.sort((a,b)=>a.date.localeCompare(b.date));
+    console.log('travels loaded:', travels.length, travels.map(r=>r.date));
     travelLoaded = true;
     renderTravelStats();
     renderTravelTable();
