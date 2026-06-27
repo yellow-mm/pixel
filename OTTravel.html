@@ -647,7 +647,7 @@ function renderSummary() {
   const yOT = otRecords.filter(r=>r.date.startsWith(ys));
   const yCost = yTravel.reduce((s,r)=>s+r.cost,0);
   const yOTPay = yOT.reduce((s,r)=>s+r.otPay,0);
-  const yOTHours = yOT.reduce((s,r)=>s+r.hours,0);
+  const yOTHours = Math.round(yOT.reduce((s,r)=>s+r.hours,0) * 100) / 100;
 
   document.getElementById('sum-year-stats').innerHTML = `
     <div class="stat-card blue"><div class="sc-label">ค่าเดินทางรวม</div><div class="sc-val">฿${fmtInt(Math.round(yCost))}</div></div>
@@ -690,7 +690,7 @@ window.showMonthDetail = function(e, key, monthName) {
   const cost = tRecs.reduce((s,r)=>s+r.cost,0);
   const dist = tRecs.reduce((s,r)=>s+r.total,0);
   const otPay = oRecs.reduce((s,r)=>s+r.otPay,0);
-  const otHours = oRecs.reduce((s,r)=>s+r.hours,0);
+  const otHours = Math.round(oRecs.reduce((s,r)=>s+r.hours,0) * 100) / 100;
   const detail = document.getElementById('sum-detail');
   detail.innerHTML = `
     <div class="form-card" style="margin-bottom:12px;">
@@ -722,13 +722,14 @@ window.showMonthDetail = function(e, key, monthName) {
       <div class="tbl-head"><h3>⏱ OT</h3></div>
       <div style="overflow-x:auto;">
         <table>
-          <thead><tr><th>วันที่</th><th>เวลา</th><th>ชม.</th><th>ตัวคูณ</th><th>ค่า OT</th></tr></thead>
+          <thead><tr><th>วันที่</th><th>เวลา</th><th>ชม.</th><th>ตัวคูณ</th><th>ค่า OT</th><th>หมายเหตุ</th></tr></thead>
           <tbody>${oRecs.map(r=>`<tr>
             <td>${dateLabel(r.date)}</td>
             <td class="mono">${r.start||'—'} – ${r.end||'—'}</td>
             <td class="mono">${r.hours} ชม.</td>
             <td class="mono">× ${r.rate}</td>
             <td class="mono" style="color:var(--orange);font-weight:600;">฿${fmt(r.otPay)}</td>
+            <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
           </tr>`).join('')}</tbody>
         </table>
       </div>
