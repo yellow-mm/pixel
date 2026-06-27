@@ -248,11 +248,12 @@
       <div class="fg">
         <label>อัตราตัวคูณ</label>
         <select id="ot-rate" onchange="calcOT()">
-          <option value="1">× 1 (วันหยุด)</option>
-          <option value="1.5">× 1.5 (วันทำงาน)</option>
+          <option value="1">× 1 (วันปกติ)</option>
+          <option value="1.5">× 1.5 (วันหยุด)</option>
           <option value="3">× 3 (วันหยุดนักขัตฤกษ์)</option>
         </select>
       </div>
+      <div class="fg"><label>หมายเหตุ</label><input type="text" id="ot-note" placeholder="เช่น ประชุมนอกเวลา"></div>
     </div>
     <div style="background:#f8f9fb;border-radius:10px;padding:11px 14px;margin-top:12px;font-size:12px;color:var(--text-3);">
       ชั่วโมงทำงานปกติ: <strong style="color:var(--text);">8 ชม./วัน</strong> &nbsp;·&nbsp; สูตร: (เงินเดือน ÷ 30 ÷ 8) × ตัวคูณ × ชม. OT
@@ -277,7 +278,7 @@
     </div>
     <div style="overflow-x:auto;">
       <table>
-        <thead><tr><th>วันที่</th><th>เวลา</th><th>ชม. OT</th><th>เงินเดือน</th><th>ตัวคูณ</th><th>ค่า OT</th><th></th></tr></thead>
+        <thead><tr><th>วันที่</th><th>เวลา</th><th>ชม. OT</th><th>เงินเดือน</th><th>ตัวคูณ</th><th>ค่า OT</th><th>หมายเหตุ</th><th></th></tr></thead>
         <tbody id="ot-body"></tbody>
       </table>
     </div>
@@ -325,13 +326,56 @@
   </div>
 </div>
 
+<!-- EDIT TRAVEL MODAL -->
+<div class="modal-overlay" id="edit-travel-modal">
+  <div class="modal">
+    <h3>✏️ แก้ไขค่าเดินทาง</h3>
+    <div class="form-grid" style="margin-bottom:0;">
+      <div class="fg"><label>วันที่</label><input type="date" id="et-date"></div>
+      <div class="fg"><label>ขาไป (กม.)</label><input type="number" id="et-go" step="0.1" min="0"></div>
+      <div class="fg"><label>ขากลับ (กม.)</label><input type="number" id="et-back" step="0.1" min="0"></div>
+      <div class="fg"><label>หมายเหตุ</label><input type="text" id="et-note"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeEditTravel()">ยกเลิก</button>
+      <button class="btn btn-blue" onclick="saveEditTravel()">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT OT MODAL -->
+<div class="modal-overlay" id="edit-ot-modal">
+  <div class="modal">
+    <h3>✏️ แก้ไข OT</h3>
+    <div class="form-grid" style="margin-bottom:0;">
+      <div class="fg"><label>วันที่</label><input type="date" id="eo-date"></div>
+      <div class="fg"><label>เวลาเริ่ม</label><input type="time" id="eo-start"></div>
+      <div class="fg"><label>เวลาสิ้นสุด</label><input type="time" id="eo-end"></div>
+      <div class="fg"><label>เงินเดือน</label><input type="number" id="eo-salary"></div>
+      <div class="fg">
+        <label>ตัวคูณ</label>
+        <select id="eo-rate">
+          <option value="1">× 1</option>
+          <option value="1.5">× 1.5</option>
+          <option value="3">× 3</option>
+        </select>
+      </div>
+      <div class="fg"><label>หมายเหตุ</label><input type="text" id="eo-note"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeEditOT()">ยกเลิก</button>
+      <button class="btn btn-orange" onclick="saveEditOT()">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 </div><!-- app-body -->
 </div><!-- app-layout -->
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue, push, remove }
+import { getDatabase, ref, onValue, push, remove, update }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
@@ -468,7 +512,10 @@ function renderTravelTable() {
     <td class="mono">${fmt(r.total)} กม.</td>
     <td class="mono pos">฿${fmt(r.cost)}</td>
     <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
-    <td><button class="icon-btn" onclick="askDelete('travel','${r._key}','ค่าเดินทาง ${dateLabel(r.date)}')">🗑</button></td>
+    <td style="display:flex;gap:4px;">
+      <button class="icon-btn" style="color:var(--text-3);" onclick="openEditTravel('${r._key}')" title="แก้ไข">✏️</button>
+      <button class="icon-btn" onclick="askDelete('travel','${r._key}','ค่าเดินทาง ${dateLabel(r.date)}')">🗑</button>
+    </td>
   </tr>`).join('');
 }
 
@@ -515,7 +562,8 @@ window.saveOT = async function() {
   const hours = Math.round((endMin - startMin) / 60 * 100) / 100;
   const hourlyRate = salary/30/8;
   const otPay = hourlyRate*rate*hours;
-  await push(otRef, {date, start, end, hours, salary, rate, otPay});
+  const note = document.getElementById('ot-note').value.trim();
+  await push(otRef, {date, start, end, hours, salary, rate, otPay, note});
   showToast('✅ บันทึก OT แล้ว','var(--orange)');
 }
 
@@ -537,7 +585,11 @@ function renderOTTable() {
     <td class="mono">฿${fmtInt(r.salary)}</td>
     <td class="mono">× ${r.rate}</td>
     <td class="mono" style="color:var(--orange);font-weight:600;">฿${fmt(r.otPay)}</td>
-    <td><button class="icon-btn" onclick="askDelete('ot','${r._key}','OT ${dateLabel(r.date)}')">🗑</button></td>
+    <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
+    <td style="display:flex;gap:4px;">
+      <button class="icon-btn" style="color:var(--text-3);" onclick="openEditOT('${r._key}')" title="แก้ไข">✏️</button>
+      <button class="icon-btn" onclick="askDelete('ot','${r._key}','OT ${dateLabel(r.date)}')">🗑</button>
+    </td>
   </tr>`).join('');
 }
 
@@ -666,6 +718,79 @@ window.showMonthDetail = function(e, key, monthName) {
   detail.style.display='';
   document.getElementById('sum-placeholder').style.display='none';
 }
+
+// ══════════════════════
+// EDIT TRAVEL
+// ══════════════════════
+let editTravelKey = null;
+window.openEditTravel = function(key) {
+  editTravelKey = key;
+  const r = travels.find(r=>r._key===key);
+  document.getElementById('et-date').value = r.date;
+  document.getElementById('et-go').value = r.go;
+  document.getElementById('et-back').value = r.back;
+  document.getElementById('et-note').value = r.note||'';
+  document.getElementById('edit-travel-modal').classList.add('show');
+}
+window.closeEditTravel = function() {
+  document.getElementById('edit-travel-modal').classList.remove('show');
+  editTravelKey = null;
+}
+window.saveEditTravel = async function() {
+  if (!editTravelKey) return;
+  const date = document.getElementById('et-date').value;
+  const go = parseFloat(document.getElementById('et-go').value)||0;
+  const back = parseFloat(document.getElementById('et-back').value)||0;
+  const note = document.getElementById('et-note').value.trim();
+  if (!date) { showToast('⚠️ กรุณาเลือกวันที่','#f59e0b'); return; }
+  const total = go+back;
+  const cost = total * TRAVEL_RATE;
+  
+  await update(ref(db,'ot_travel/travel/'+editTravelKey), {date, go, back, total, cost, note});
+  closeEditTravel();
+  showToast('✏️ แก้ไขค่าเดินทางแล้ว','var(--blue)');
+}
+document.getElementById('edit-travel-modal').addEventListener('click', function(e){ if(e.target===this) closeEditTravel(); });
+
+// ══════════════════════
+// EDIT OT
+// ══════════════════════
+let editOTKey = null;
+window.openEditOT = function(key) {
+  editOTKey = key;
+  const r = otRecords.find(r=>r._key===key);
+  document.getElementById('eo-date').value = r.date;
+  document.getElementById('eo-start').value = r.start||'';
+  document.getElementById('eo-end').value = r.end||'';
+  document.getElementById('eo-salary').value = r.salary;
+  document.getElementById('eo-rate').value = r.rate;
+  document.getElementById('eo-note').value = r.note||'';
+  document.getElementById('edit-ot-modal').classList.add('show');
+}
+window.closeEditOT = function() {
+  document.getElementById('edit-ot-modal').classList.remove('show');
+  editOTKey = null;
+}
+window.saveEditOT = async function() {
+  if (!editOTKey) return;
+  const date = document.getElementById('eo-date').value;
+  const start = document.getElementById('eo-start').value;
+  const end = document.getElementById('eo-end').value;
+  const salary = parseFloat(document.getElementById('eo-salary').value)||0;
+  const rate = parseFloat(document.getElementById('eo-rate').value)||1;
+  const note = document.getElementById('eo-note').value.trim();
+  if (!date||!start||!end||!salary) { showToast('⚠️ กรุณากรอกข้อมูลให้ครบ','#f59e0b'); return; }
+  const startMin = timeToMinutes(start);
+  let endMin = timeToMinutes(end);
+  if (endMin <= startMin) endMin += 24*60;
+  const hours = Math.round((endMin - startMin)/60*100)/100;
+  const otPay = (salary/30/8)*rate*hours;
+  
+  await update(ref(db,'ot_travel/ot/'+editOTKey), {date, start, end, hours, salary, rate, otPay, note});
+  closeEditOT();
+  showToast('✏️ แก้ไข OT แล้ว','var(--orange)');
+}
+document.getElementById('edit-ot-modal').addEventListener('click', function(e){ if(e.target===this) closeEditOT(); });
 
 // ══════════════════════
 // DELETE
