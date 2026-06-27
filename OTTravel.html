@@ -418,18 +418,30 @@ function dateLabel(dateStr) {
 }
 
 // ─── FIREBASE LISTENERS ───
+let travelLoaded = false;
+let otLoaded = false;
+
 onValue(travelRef, snap => {
-  travels = [];
-  snap.forEach(c => travels.push({_key:c.key,...c.val()}));
-  travels.sort((a,b)=>a.date.localeCompare(b.date));
-  renderTravelStats(); renderTravelTable(); renderSummary();
+  try {
+    travels = [];
+    snap.forEach(c => travels.push({_key:c.key,...c.val()}));
+    travels.sort((a,b)=>a.date.localeCompare(b.date));
+    travelLoaded = true;
+    renderTravelStats();
+    renderTravelTable();
+  } catch(e) { console.error('travel listener error:', e); }
+  try { if (otLoaded) renderSummary(); } catch(e) { console.error('summary error:', e); }
 });
 
 onValue(otRef, snap => {
-  otRecords = [];
-  snap.forEach(c => otRecords.push({_key:c.key,...c.val()}));
-  otRecords.sort((a,b)=>a.date.localeCompare(b.date));
-  renderOTTable(); renderSummary();
+  try {
+    otRecords = [];
+    snap.forEach(c => otRecords.push({_key:c.key,...c.val()}));
+    otRecords.sort((a,b)=>a.date.localeCompare(b.date));
+    otLoaded = true;
+    renderOTTable();
+  } catch(e) { console.error('ot listener error:', e); }
+  try { if (travelLoaded) renderSummary(); } catch(e) { console.error('summary error:', e); }
 });
 
 // ─── TABS ───
@@ -623,6 +635,8 @@ window.selectYear = function(v) {
 }
 
 function renderSummary() {
+  const el = document.getElementById('sum-year-label');
+  if (!el) return; // guard: elements not in DOM yet
   const ys = String(selectedYear);
   document.getElementById('sum-year-label').textContent = ys;
   const years = getYears();
