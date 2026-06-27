@@ -241,6 +241,9 @@
   <div class="form-card">
     <div class="fc-title">⏱ คำนวณค่า OT</div>
     <div class="form-grid">
+      <div class="fg"><label>วันที่ทำ OT</label><input type="date" id="ot-date"></div>
+      <div class="fg"><label>เวลาเริ่ม OT</label><input type="time" id="ot-start" oninput="calcOT()"></div>
+      <div class="fg"><label>เวลาสิ้นสุด OT</label><input type="time" id="ot-end" oninput="calcOT()"></div>
       <div class="fg"><label>เงินเดือน (บาท)</label><input type="number" id="ot-salary" placeholder="เช่น 25000" oninput="calcOT()"></div>
       <div class="fg">
         <label>อัตราตัวคูณ</label>
@@ -250,7 +253,6 @@
           <option value="3">× 3 (วันหยุดนักขัตฤกษ์)</option>
         </select>
       </div>
-      <div class="fg"><label>จำนวนชั่วโมง OT</label><input type="number" id="ot-hours" placeholder="เช่น 2.5" step="0.5" min="0" oninput="calcOT()"></div>
     </div>
     <div style="background:#f8f9fb;border-radius:10px;padding:11px 14px;margin-top:12px;font-size:12px;color:var(--text-3);">
       ชั่วโมงทำงานปกติ: <strong style="color:var(--text);">8 ชม./วัน</strong> &nbsp;·&nbsp; สูตร: (เงินเดือน ÷ 30 ÷ 8) × ตัวคูณ × ชม. OT
@@ -267,10 +269,15 @@
 
   <!-- OT History -->
   <div class="tbl-card">
-    <div class="tbl-head"><h3>📋 ประวัติ OT</h3></div>
+    <div class="tbl-head">
+      <h3>📋 ประวัติ OT</h3>
+      <select id="ot-filter" onchange="renderOTTable()" style="padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;background:var(--bg);color:var(--text);outline:none;">
+        <option value="all">ทุกเดือน</option>
+      </select>
+    </div>
     <div style="overflow-x:auto;">
       <table>
-        <thead><tr><th>วันที่บันทึก</th><th>เงินเดือน</th><th>ตัวคูณ</th><th>ชม. OT</th><th>ค่า OT</th><th></th></tr></thead>
+        <thead><tr><th>วันที่</th><th>เวลา</th><th>ชม. OT</th><th>เงินเดือน</th><th>ตัวคูณ</th><th>ค่า OT</th><th></th></tr></thead>
         <tbody id="ot-body"></tbody>
       </table>
     </div>
@@ -377,8 +384,8 @@ onValue(travelRef, snap => {
 onValue(otRef, snap => {
   otRecords = [];
   snap.forEach(c => otRecords.push({_key:c.key,...c.val()}));
-  otRecords.sort((a,b)=>a.savedAt.localeCompare(b.savedAt));
-  renderOTTable();
+  otRecords.sort((a,b)=>a.date.localeCompare(b.date));
+  renderOTTable(); renderSummary();
 });
 
 // ─── TABS ───
@@ -468,40 +475,69 @@ function renderTravelTable() {
 // ══════════════════════
 // OT
 // ══════════════════════
+function timeToMinutes(t) {
+  if (!t) return null;
+  const [h,m] = t.split(':').map(Number);
+  return h*60 + m;
+}
+
 window.calcOT = function() {
   const salary = parseFloat(document.getElementById('ot-salary').value)||0;
   const rate = parseFloat(document.getElementById('ot-rate').value)||1;
-  const hours = parseFloat(document.getElementById('ot-hours').value)||0;
+  const start = document.getElementById('ot-start').value;
+  const end = document.getElementById('ot-end').value;
   const box = document.getElementById('ot-result');
-  if (!salary || !hours) { box.style.display='none'; return; }
+  if (!salary || !start || !end) { box.style.display='none'; return; }
+  const startMin = timeToMinutes(start);
+  let endMin = timeToMinutes(end);
+  if (endMin <= startMin) endMin += 24*60; // ข้ามเที่ยงคืน
+  const hours = Math.round((endMin - startMin) / 60 * 100) / 100;
+  if (hours <= 0) { box.style.display='none'; return; }
   const hourlyRate = salary / 30 / 8;
   const otPay = hourlyRate * rate * hours;
   document.getElementById('ot-result-val').textContent = `฿${fmt(otPay)}`;
   document.getElementById('ot-formula').textContent =
-    `(${fmtInt(salary)} ÷ 30 ÷ 8) × ${rate} × ${hours} ชม.\n= ${fmt(hourlyRate)}/ชม. × ${rate} × ${hours} = ฿${fmt(otPay)}`;
+    `${start} – ${end} = ${hours} ชม.\n(${fmtInt(salary)} ÷ 30 ÷ 8) × ${rate} × ${hours} = ฿${fmt(otPay)}`;
   box.style.display='';
 }
 
 window.saveOT = async function() {
+  const date = document.getElementById('ot-date').value;
   const salary = parseFloat(document.getElementById('ot-salary').value)||0;
   const rate = parseFloat(document.getElementById('ot-rate').value)||1;
-  const hours = parseFloat(document.getElementById('ot-hours').value)||0;
-  if (!salary||!hours) return;
+  const start = document.getElementById('ot-start').value;
+  const end = document.getElementById('ot-end').value;
+  if (!date) { showToast('⚠️ กรุณาเลือกวันที่','#f59e0b'); return; }
+  if (!salary||!start||!end) { showToast('⚠️ กรุณากรอกข้อมูลให้ครบ','#f59e0b'); return; }
+  const startMin = timeToMinutes(start);
+  let endMin = timeToMinutes(end);
+  if (endMin <= startMin) endMin += 24*60;
+  const hours = Math.round((endMin - startMin) / 60 * 100) / 100;
   const hourlyRate = salary/30/8;
   const otPay = hourlyRate*rate*hours;
-  await push(otRef, {salary, rate, hours, otPay, savedAt: today()});
+  await push(otRef, {date, start, end, hours, salary, rate, otPay});
   showToast('✅ บันทึก OT แล้ว','var(--orange)');
 }
 
 function renderOTTable() {
-  document.getElementById('ot-empty').style.display = otRecords.length?'none':'';
-  document.getElementById('ot-body').innerHTML = otRecords.map(r => `<tr>
-    <td>${dateLabel(r.savedAt)}</td>
+  const filter = document.getElementById('ot-filter').value;
+  let data = filter==='all' ? otRecords : otRecords.filter(r=>r.date.startsWith(filter));
+  const months = [...new Set(otRecords.map(r=>r.date.slice(0,7)))].sort();
+  const sel = document.getElementById('ot-filter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="all">ทุกเดือน</option>' + months.map(m => {
+    const [y,mo] = m.split('-');
+    return `<option value="${m}" ${m===cur?'selected':''}>${MONTHS_EN[parseInt(mo)-1]} ${y}</option>`;
+  }).join('');
+  document.getElementById('ot-empty').style.display = data.length?'none':'';
+  document.getElementById('ot-body').innerHTML = data.map(r => `<tr>
+    <td>${dateLabel(r.date)}</td>
+    <td class="mono">${r.start||'—'} – ${r.end||'—'}</td>
+    <td class="mono">${r.hours} ชม.</td>
     <td class="mono">฿${fmtInt(r.salary)}</td>
     <td class="mono">× ${r.rate}</td>
-    <td class="mono">${r.hours} ชม.</td>
     <td class="mono" style="color:var(--orange);font-weight:600;">฿${fmt(r.otPay)}</td>
-    <td><button class="icon-btn" onclick="askDelete('ot','${r._key}','OT ${dateLabel(r.savedAt)}')">🗑</button></td>
+    <td><button class="icon-btn" onclick="askDelete('ot','${r._key}','OT ${dateLabel(r.date)}')">🗑</button></td>
   </tr>`).join('');
 }
 
@@ -509,7 +545,11 @@ function renderOTTable() {
 // SUMMARY
 // ══════════════════════
 function getYears() {
-  const y = [...new Set(travels.map(r=>r.date.slice(0,4)))];
+  const allDates = [
+    ...travels.map(r=>r.date.slice(0,4)),
+    ...otRecords.map(r=>r.date.slice(0,4))
+  ];
+  const y = [...new Set(allDates)];
   const cur = String(new Date().getFullYear());
   if (!y.includes(cur)) y.push(cur);
   return y.sort();
@@ -533,25 +573,33 @@ function renderSummary() {
   const years = getYears();
   document.getElementById('sum-year-sel').innerHTML = years.map(y=>`<option value="${y}" ${y===ys?'selected':''}>${y}</option>`).join('');
 
-  const yRecs = travels.filter(r=>r.date.startsWith(ys));
-  const yCost = yRecs.reduce((s,r)=>s+r.cost,0);
-  const yDist = yRecs.reduce((s,r)=>s+r.total,0);
-  const yDays = yRecs.length;
+  const yTravel = travels.filter(r=>r.date.startsWith(ys));
+  const yOT = otRecords.filter(r=>r.date.startsWith(ys));
+  const yCost = yTravel.reduce((s,r)=>s+r.cost,0);
+  const yOTPay = yOT.reduce((s,r)=>s+r.otPay,0);
+  const yOTHours = yOT.reduce((s,r)=>s+r.hours,0);
+
   document.getElementById('sum-year-stats').innerHTML = `
-    <div class="stat-card blue"><div class="sc-label">ค่าเดินทางรวมปี ${ys}</div><div class="sc-val">฿${fmtInt(Math.round(yCost))}</div></div>
-    <div class="stat-card"><div class="sc-label">ระยะทางรวม</div><div class="sc-val">${fmtInt(Math.round(yDist))} <span style="font-size:12px;font-weight:400;">กม.</span></div></div>
-    <div class="stat-card"><div class="sc-label">จำนวนวัน</div><div class="sc-val">${yDays} วัน</div></div>`;
+    <div class="stat-card blue"><div class="sc-label">ค่าเดินทางรวม</div><div class="sc-val">฿${fmtInt(Math.round(yCost))}</div></div>
+    <div class="stat-card" style="border-left:3px solid var(--orange);"><div class="sc-label">ค่า OT รวม</div><div class="sc-val" style="color:var(--orange);">฿${fmtInt(Math.round(yOTPay))}</div></div>
+    <div class="stat-card"><div class="sc-label">ชม. OT รวม</div><div class="sc-val">${yOTHours} <span style="font-size:11px;">ชม.</span></div></div>
+    <div class="stat-card"><div class="sc-label">วันเดินทาง</div><div class="sc-val">${yTravel.length} วัน</div></div>`;
 
   document.getElementById('sum-month-list').innerHTML = MONTHS_EN.map((m,idx) => {
     const mo = String(idx+1).padStart(2,'0');
     const key = `${ys}-${mo}`;
-    const recs = travels.filter(r=>r.date.startsWith(key));
-    const cost = recs.reduce((s,r)=>s+r.cost,0);
-    const hasData = recs.length > 0;
+    const tRecs = travels.filter(r=>r.date.startsWith(key));
+    const oRecs = otRecords.filter(r=>r.date.startsWith(key));
+    const cost = tRecs.reduce((s,r)=>s+r.cost,0);
+    const otPay = oRecs.reduce((s,r)=>s+r.otPay,0);
+    const hasData = tRecs.length>0 || oRecs.length>0;
     return `<div class="month-row ${!hasData?'no-data':''} ${activeMonth===key?'active':''}"
-      onclick="${hasData?`showMonthDetail('${key}','${m}')`:''}" >
-      <div class="mr-name">${m}</div>
-      <div class="mr-val">${hasData?'฿'+fmtInt(Math.round(cost)):'—'}</div>
+      onclick="${hasData?`showMonthDetail(event,'${key}','${m}')`:''}" >
+      <div>
+        <div class="mr-name">${m}</div>
+        <div class="mr-val" style="font-size:10px;">${tRecs.length?'🚌฿'+fmtInt(Math.round(cost)):''} ${oRecs.length?'⏱฿'+fmtInt(Math.round(otPay)):''}</div>
+      </div>
+      <div class="mr-dot" style="width:6px;height:6px;border-radius:50%;background:${activeMonth===key?'rgba(255,255,255,0.7)':'var(--blue)'};flex-shrink:0;"></div>
     </div>`;
   }).join('');
 
@@ -562,29 +610,33 @@ function renderSummary() {
   }
 }
 
-window.showMonthDetail = function(key, monthName) {
+window.showMonthDetail = function(e, key, monthName) {
   activeMonth = key;
   document.querySelectorAll('.month-row').forEach(el=>el.classList.remove('active'));
-  event.currentTarget.classList.add('active');
-  const recs = travels.filter(r=>r.date.startsWith(key));
-  const [y,mo] = key.split('-');
-  const cost = recs.reduce((s,r)=>s+r.cost,0);
-  const dist = recs.reduce((s,r)=>s+r.total,0);
+  e.currentTarget.classList.add('active');
+  const [y] = key.split('-');
+  const tRecs = travels.filter(r=>r.date.startsWith(key));
+  const oRecs = otRecords.filter(r=>r.date.startsWith(key));
+  const cost = tRecs.reduce((s,r)=>s+r.cost,0);
+  const dist = tRecs.reduce((s,r)=>s+r.total,0);
+  const otPay = oRecs.reduce((s,r)=>s+r.otPay,0);
+  const otHours = oRecs.reduce((s,r)=>s+r.hours,0);
   const detail = document.getElementById('sum-detail');
   detail.innerHTML = `
     <div class="form-card" style="margin-bottom:12px;">
       <div class="fc-title" style="margin-bottom:12px;">${monthName} ${y}</div>
       <div class="stat-row" style="margin-bottom:0;">
-        <div class="stat-card blue"><div class="sc-label">ค่าเดินทาง</div><div class="sc-val">฿${fmtInt(Math.round(cost))}</div></div>
-        <div class="stat-card"><div class="sc-label">ระยะทางรวม</div><div class="sc-val">${fmtInt(Math.round(dist))} <span style="font-size:11px;">กม.</span></div></div>
-        <div class="stat-card"><div class="sc-label">จำนวนวัน</div><div class="sc-val">${recs.length} วัน</div></div>
+        <div class="stat-card blue"><div class="sc-label">ค่าเดินทาง</div><div class="sc-val">฿${fmtInt(Math.round(cost))}</div><div class="sc-sub">${tRecs.length} วัน · ${fmtInt(Math.round(dist))} กม.</div></div>
+        <div class="stat-card" style="border-left:3px solid var(--orange);"><div class="sc-label">ค่า OT</div><div class="sc-val" style="color:var(--orange);">฿${fmtInt(Math.round(otPay))}</div><div class="sc-sub">${oRecs.length} ครั้ง · ${otHours} ชม.</div></div>
       </div>
     </div>
-    <div class="tbl-card">
+    ${tRecs.length ? `
+    <div class="tbl-card" style="margin-bottom:12px;">
+      <div class="tbl-head"><h3>🚌 ค่าเดินทาง</h3></div>
       <div style="overflow-x:auto;">
         <table>
           <thead><tr><th>วันที่</th><th>ขาไป</th><th>ขากลับ</th><th>รวม</th><th>ค่าเดินทาง</th><th>หมายเหตุ</th></tr></thead>
-          <tbody>${recs.map(r=>`<tr>
+          <tbody>${tRecs.map(r=>`<tr>
             <td>${dateLabel(r.date)}</td>
             <td class="mono">${fmt(r.go)} กม.</td>
             <td class="mono">${fmt(r.back)} กม.</td>
@@ -594,7 +646,23 @@ window.showMonthDetail = function(key, monthName) {
           </tr>`).join('')}</tbody>
         </table>
       </div>
-    </div>`;
+    </div>` : ''}
+    ${oRecs.length ? `
+    <div class="tbl-card">
+      <div class="tbl-head"><h3>⏱ OT</h3></div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>วันที่</th><th>เวลา</th><th>ชม.</th><th>ตัวคูณ</th><th>ค่า OT</th></tr></thead>
+          <tbody>${oRecs.map(r=>`<tr>
+            <td>${dateLabel(r.date)}</td>
+            <td class="mono">${r.start||'—'} – ${r.end||'—'}</td>
+            <td class="mono">${r.hours} ชม.</td>
+            <td class="mono">× ${r.rate}</td>
+            <td class="mono" style="color:var(--orange);font-weight:600;">฿${fmt(r.otPay)}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>` : ''}`;
   detail.style.display='';
   document.getElementById('sum-placeholder').style.display='none';
 }
@@ -623,6 +691,7 @@ document.getElementById('del-modal').addEventListener('click', function(e){ if(e
 
 // ─── INIT ───
 document.getElementById('t-date').value = today();
+document.getElementById('ot-date').value = today();
 </script>
 </body>
 </html>
