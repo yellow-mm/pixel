@@ -248,8 +248,8 @@
       <div class="fg">
         <label>อัตราตัวคูณ</label>
         <select id="ot-rate" onchange="calcOT()">
-          <option value="1">× 1 (วันหยุด)</option>
-          <option value="1.5">× 1.5 (วันทำงาน)</option>
+          <option value="1">× 1 (วันปกติ)</option>
+          <option value="1.5">× 1.5 (วันหยุด)</option>
           <option value="3">× 3 (วันหยุดนักขัตฤกษ์)</option>
         </select>
       </div>
@@ -495,15 +495,17 @@ function renderTravelStats() {
 }
 
 function renderTravelTable() {
-  const filter = document.getElementById('t-filter').value;
-  let data = filter==='all' ? travels : travels.filter(r=>r.date.startsWith(filter));
-  const months = [...new Set(travels.map(r=>r.date.slice(0,7)))].sort();
   const sel = document.getElementById('t-filter');
-  const cur = sel.value;
+  const cur = sel.value; // เก็บค่าก่อน rebuild
+  const months = [...new Set(travels.map(r=>r.date.slice(0,7)))].sort();
   sel.innerHTML = '<option value="all">ทุกเดือน</option>' + months.map(m => {
     const [y,mo] = m.split('-');
-    return `<option value="${m}" ${m===cur?'selected':''}>${MONTHS_EN[parseInt(mo)-1]} ${y}</option>`;
+    return `<option value="${m}">${MONTHS_EN[parseInt(mo)-1]} ${y}</option>`;
   }).join('');
+  // restore selected value หลัง rebuild
+  sel.value = (cur && [...sel.options].some(o=>o.value===cur)) ? cur : 'all';
+  const filter = sel.value;
+  const data = filter==='all' ? travels : travels.filter(r=>r.date.startsWith(filter));
   document.getElementById('travel-empty').style.display = data.length?'none':'';
   document.getElementById('travel-body').innerHTML = data.map(r => `<tr>
     <td>${dateLabel(r.date)}</td>
@@ -568,15 +570,16 @@ window.saveOT = async function() {
 }
 
 function renderOTTable() {
-  const filter = document.getElementById('ot-filter').value;
-  let data = filter==='all' ? otRecords : otRecords.filter(r=>r.date.startsWith(filter));
-  const months = [...new Set(otRecords.map(r=>r.date.slice(0,7)))].sort();
   const sel = document.getElementById('ot-filter');
   const cur = sel.value;
+  const months = [...new Set(otRecords.map(r=>r.date.slice(0,7)))].sort();
   sel.innerHTML = '<option value="all">ทุกเดือน</option>' + months.map(m => {
     const [y,mo] = m.split('-');
-    return `<option value="${m}" ${m===cur?'selected':''}>${MONTHS_EN[parseInt(mo)-1]} ${y}</option>`;
+    return `<option value="${m}">${MONTHS_EN[parseInt(mo)-1]} ${y}</option>`;
   }).join('');
+  sel.value = (cur && [...sel.options].some(o=>o.value===cur)) ? cur : 'all';
+  const filter = sel.value;
+  const data = filter==='all' ? otRecords : otRecords.filter(r=>r.date.startsWith(filter));
   document.getElementById('ot-empty').style.display = data.length?'none':'';
   document.getElementById('ot-body').innerHTML = data.map(r => `<tr>
     <td>${dateLabel(r.date)}</td>
