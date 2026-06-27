@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OT & Travel Cost</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --card: #ffffff;
+    --text: #1a1e2e;
+    --text-2: #5a6270;
+    --text-3: #9aa3b0;
+    --border: #e4e7ed;
+    --blue: #3b6ef5;
+    --blue-light: #eef2fe;
+    --blue-dark: #2353d4;
+    --orange: #f97316;
+    --orange-light: #fff4ed;
+    --orange-dark: #c2590a;
+    --green: #16a34a;
+    --green-light: #f0fdf4;
+    --red: #dc2626;
+    --shadow: 0 1px 8px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 20px rgba(0,0,0,0.09);
+    --radius: 14px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 220px; flex-shrink: 0; background: #fff; border-right: 1px solid #e8e8e4;
+    display: flex; flex-direction: column; padding: 32px 0 24px;
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 200;
+  }
+  .sidebar-logo { padding: 0 24px 24px; font-size: 15px; font-weight: 600; color: #1a1a18; letter-spacing: -0.3px; border-bottom: 1px solid #e8e8e4; margin-bottom: 16px; }
+  .sidebar-logo span { color: #bbb; font-weight: 400; }
+  .nav-section { padding: 0 12px; }
+  .nav-label { font-size: 10px; font-weight: 600; color: #aaa; letter-spacing: 1px; text-transform: uppercase; padding: 0 12px; margin-bottom: 6px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; font-size: 14px; color: #555; text-decoration: none; cursor: pointer; transition: all .15s; border: none; background: none; width: 100%; text-align: left; }
+  .nav-item:hover { background: #f4f4f0; color: #1a1a18; }
+  .nav-item.active { background: var(--blue); color: #fff; }
+  .nav-item .ni { width: 18px; text-align: center; flex-shrink: 0; }
+  .sidebar-footer { margin-top: auto; padding: 16px 24px 0; border-top: 1px solid #e8e8e4; }
+  .sidebar-footer p { font-size: 11px; color: #bbb; line-height: 1.6; }
+
+  /* LAYOUT */
+  .app-layout { display: flex; min-height: 100vh; }
+  .app-body { margin-left: 220px; flex: 1; }
+
+  /* HEADER */
+  header { background: var(--blue); color: #fff; padding: 16px 28px; display: flex; align-items: center; gap: 14px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(59,110,245,0.25); }
+  header .hicon { font-size: 24px; }
+  header h1 { font-size: 17px; font-weight: 700; }
+  header p { font-size: 12px; opacity: 0.8; }
+
+  /* TABS */
+  .tabs { display: flex; background: #fff; border-bottom: 2px solid var(--border); padding: 0 20px; gap: 2px; }
+  .tab { padding: 13px 22px; font-size: 14px; font-weight: 500; color: var(--text-2); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all .2s; white-space: nowrap; }
+  .tab:hover { color: var(--blue); }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 700; }
+
+  /* CONTENT */
+  .content { padding: 22px 20px; max-width: 860px; margin: 0 auto; }
+
+  /* CARDS */
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
+  .stat-card .sc-label { font-size: 11px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 5px; }
+  .stat-card .sc-val { font-size: 20px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+  .stat-card .sc-sub { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+  .stat-card.blue { background: var(--blue); border-color: var(--blue-dark); }
+  .stat-card.blue .sc-label, .stat-card.blue .sc-val, .stat-card.blue .sc-sub { color: #fff; }
+
+  /* FORM CARD */
+  .form-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); margin-bottom: 18px; }
+  .fc-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; color: var(--text); }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 11px; }
+  .fg { display: flex; flex-direction: column; gap: 5px; }
+  .fg label { font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .3px; }
+  .fg input, .fg select {
+    padding: 9px 11px; border: 1.5px solid var(--border); border-radius: 9px;
+    font-size: 14px; font-family: 'Sarabun', sans-serif; background: var(--bg);
+    color: var(--text); outline: none; transition: border-color .2s;
+  }
+  .fg input:focus, .fg select:focus { border-color: var(--blue); background: #fff; }
+  .form-actions { display: flex; gap: 9px; margin-top: 14px; flex-wrap: wrap; }
+  .btn { padding: 10px 20px; border-radius: 9px; font-size: 13px; font-weight: 600; font-family: 'Sarabun', sans-serif; cursor: pointer; border: none; transition: all .15s; }
+  .btn-blue { background: var(--blue); color: #fff; }
+  .btn-blue:hover { background: var(--blue-dark); transform: translateY(-1px); }
+  .btn-orange { background: var(--orange); color: #fff; }
+  .btn-orange:hover { background: var(--orange-dark); }
+  .btn-ghost { background: var(--bg); color: var(--text-2); border: 1.5px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--blue); color: var(--blue); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 7px; }
+
+  /* TABLE */
+  .tbl-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; margin-bottom: 18px; }
+  .tbl-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .tbl-head h3 { font-size: 14px; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f8f9fb; padding: 9px 14px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #f0f2f5; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8f9fb; }
+  .mono { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+  .pos { color: var(--green); font-weight: 600; }
+  .icon-btn { background: none; border: none; cursor: pointer; padding: 4px 7px; border-radius: 6px; font-size: 14px; color: var(--text-3); transition: all .15s; }
+  .icon-btn:hover { color: var(--red); background: #fef2f2; }
+  .empty-box { text-align: center; padding: 36px 20px; color: var(--text-3); }
+  .empty-box .ei { font-size: 32px; margin-bottom: 8px; }
+
+  /* OT RESULT BOX */
+  .ot-result { background: var(--orange-light); border: 1.5px solid #fed7aa; border-radius: var(--radius); padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; margin-top: 16px; flex-wrap: wrap; gap: 12px; }
+  .ot-result .or-label { font-size: 12px; color: var(--orange-dark); font-weight: 600; margin-bottom: 4px; }
+  .ot-result .or-val { font-size: 28px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; color: var(--orange); }
+  .ot-formula { font-size: 11px; color: var(--text-3); font-family: 'IBM Plex Mono', monospace; margin-top: 6px; line-height: 1.6; }
+
+  /* SUMMARY TAB */
+  .sum-layout { display: grid; grid-template-columns: 160px 1fr; gap: 14px; align-items: start; }
+  .month-panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); position: sticky; top: 72px; }
+  .mp-header { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .5px; }
+  .month-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; cursor: pointer; border-bottom: 1px solid #f0f2f5; transition: background .15s; }
+  .month-row:last-child { border-bottom: none; }
+  .month-row:hover { background: var(--blue-light); }
+  .month-row.active { background: var(--blue); }
+  .month-row.no-data { opacity: 0.4; cursor: default; }
+  .month-row.no-data:hover { background: none; }
+  .mr-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .month-row.active .mr-name, .month-row.active .mr-val { color: #fff; }
+  .mr-val { font-size: 11px; color: var(--blue); font-family: 'IBM Plex Mono', monospace; }
+  .detail-panel { display: flex; flex-direction: column; gap: 12px; }
+  .placeholder-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 50px 20px; text-align: center; color: var(--text-3); }
+
+  /* CHIP */
+  .chip { display: inline-block; padding: 3px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+  .chip-go { background: #dbeafe; color: #1d4ed8; }
+  .chip-back { background: #fce7f3; color: #9d174d; }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 16px; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .modal-overlay.show { opacity: 1; pointer-events: all; }
+  .modal { background: var(--card); border-radius: 18px; padding: 26px 22px; width: 100%; max-width: 400px; box-shadow: var(--shadow-md); transform: translateY(20px); transition: transform .25s; }
+  .modal-overlay.show .modal { transform: translateY(0); }
+  .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 18px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--blue); color: #fff; padding: 11px 22px; border-radius: 30px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); transition: transform .3s; z-index: 999; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 700px) {
+    .sidebar { display: none; }
+    .app-body { margin-left: 0; }
+    .sum-layout { grid-template-columns: 1fr; }
+    .month-panel { position: static; }
+  }
+  @media (max-width: 480px) {
+    .stat-row { grid-template-columns: 1fr 1fr; }
+    .form-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app-layout">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo">Dashboard <span>/ App</span></div>
+  <div class="nav-section">
+    <div class="nav-label">Menu</div>
+    <a class="nav-item" href="index.html"><span class="ni">⊞</span> หน้าหลัก</a>
+    <a class="nav-item" href="GrabIncomeTracker.html"><span class="ni">🚗</span> Grab Tracker</a>
+    <a class="nav-item active" href="OTTravel.html"><span class="ni">⏱</span> OT & Travel</a>
+  </div>
+  <div class="sidebar-footer"><p>yellow-mm / pixel<br>github.io</p></div>
+</aside>
+
+<div class="app-body">
+<header>
+  <div class="hicon">⏱</div>
+  <div>
+    <h1>OT & Travel Cost</h1>
+    <p>คำนวณค่าล่วงเวลา & ค่าเดินทาง</p>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('travel')">🚌 ค่าเดินทาง</div>
+  <div class="tab" onclick="switchTab('ot')">⏱ คำนวณ OT</div>
+  <div class="tab" onclick="switchTab('summary')">📊 สรุปรายเดือน</div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TAB: TRAVEL
+══════════════════════════════════════════ -->
+<div id="tab-travel" class="content">
+  <div class="stat-row" id="travel-stats"></div>
+
+  <div class="form-card">
+    <div class="fc-title">➕ บันทึกค่าเดินทาง</div>
+    <div class="form-grid">
+      <div class="fg"><label>วันที่</label><input type="date" id="t-date"></div>
+      <div class="fg"><label>ขาไป (กม.)</label><input type="number" id="t-go" placeholder="0" step="0.1" min="0" oninput="previewTravel()"></div>
+      <div class="fg"><label>ขากลับ (กม.)</label><input type="number" id="t-back" placeholder="0" step="0.1" min="0" oninput="previewTravel()"></div>
+      <div class="fg"><label>หมายเหตุ</label><input type="text" id="t-note" placeholder="เช่น ไปประชุม"></div>
+    </div>
+    <!-- preview -->
+    <div id="travel-preview" style="display:none;margin-top:12px;background:var(--blue-light);border:1px solid #c7d7fd;border-radius:10px;padding:11px 14px;font-size:13px;color:var(--blue-dark);">
+      <span id="travel-preview-text"></span>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-blue" onclick="saveTravel()">💾 บันทึก</button>
+      <button class="btn btn-ghost" onclick="clearTravel()">✕ ล้าง</button>
+    </div>
+  </div>
+
+  <div class="tbl-card">
+    <div class="tbl-head">
+      <h3>📋 รายการ</h3>
+      <select id="t-filter" onchange="renderTravelTable()" style="padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;background:var(--bg);color:var(--text);outline:none;">
+        <option value="all">ทุกเดือน</option>
+      </select>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>วันที่</th><th>ขาไป</th><th>ขากลับ</th><th>รวม กม.</th><th>ค่าเดินทาง</th><th>หมายเหตุ</th><th></th></tr></thead>
+        <tbody id="travel-body"></tbody>
+      </table>
+    </div>
+    <div id="travel-empty" class="empty-box" style="display:none;"><div class="ei">📭</div><p>ยังไม่มีข้อมูล</p></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TAB: OT
+══════════════════════════════════════════ -->
+<div id="tab-ot" class="content" style="display:none;">
+  <div class="form-card">
+    <div class="fc-title">⏱ คำนวณค่า OT</div>
+    <div class="form-grid">
+      <div class="fg"><label>เงินเดือน (บาท)</label><input type="number" id="ot-salary" placeholder="เช่น 25000" oninput="calcOT()"></div>
+      <div class="fg">
+        <label>อัตราตัวคูณ</label>
+        <select id="ot-rate" onchange="calcOT()">
+          <option value="1">× 1 (วันปกติ)</option>
+          <option value="1.5">× 1.5 (วันหยุด)</option>
+          <option value="3">× 3 (วันหยุดนักขัตฤกษ์)</option>
+        </select>
+      </div>
+      <div class="fg"><label>จำนวนชั่วโมง OT</label><input type="number" id="ot-hours" placeholder="เช่น 2.5" step="0.5" min="0" oninput="calcOT()"></div>
+    </div>
+    <div style="background:#f8f9fb;border-radius:10px;padding:11px 14px;margin-top:12px;font-size:12px;color:var(--text-3);">
+      ชั่วโมงทำงานปกติ: <strong style="color:var(--text);">8 ชม./วัน</strong> &nbsp;·&nbsp; สูตร: (เงินเดือน ÷ 30 ÷ 8) × ตัวคูณ × ชม. OT
+    </div>
+    <div class="ot-result" id="ot-result" style="display:none;">
+      <div>
+        <div class="or-label">ค่า OT ที่ได้รับ</div>
+        <div class="or-val" id="ot-result-val">฿0</div>
+        <div class="ot-formula" id="ot-formula"></div>
+      </div>
+      <button class="btn btn-orange" onclick="saveOT()">💾 บันทึก OT นี้</button>
+    </div>
+  </div>
+
+  <!-- OT History -->
+  <div class="tbl-card">
+    <div class="tbl-head"><h3>📋 ประวัติ OT</h3></div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>วันที่บันทึก</th><th>เงินเดือน</th><th>ตัวคูณ</th><th>ชม. OT</th><th>ค่า OT</th><th></th></tr></thead>
+        <tbody id="ot-body"></tbody>
+      </table>
+    </div>
+    <div id="ot-empty" class="empty-box" style="display:none;"><div class="ei">📭</div><p>ยังไม่มีประวัติ OT</p></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TAB: SUMMARY
+══════════════════════════════════════════ -->
+<div id="tab-summary" class="content" style="display:none;">
+  <!-- year nav -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+    <button onclick="changeYear(-1)" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:15px;color:var(--text-2);">◀</button>
+    <div id="sum-year-label" style="font-size:16px;font-weight:700;min-width:60px;text-align:center;"></div>
+    <button onclick="changeYear(1)" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:15px;color:var(--text-2);">▶</button>
+    <select id="sum-year-sel" onchange="selectYear(this.value)" style="padding:7px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;background:var(--bg);color:var(--text);outline:none;"></select>
+  </div>
+
+  <!-- year totals -->
+  <div class="stat-row" id="sum-year-stats" style="margin-bottom:16px;"></div>
+
+  <!-- 2-col -->
+  <div class="sum-layout">
+    <div class="month-panel">
+      <div class="mp-header">เดือน</div>
+      <div id="sum-month-list"></div>
+    </div>
+    <div class="detail-panel">
+      <div id="sum-detail" style="display:none;"></div>
+      <div id="sum-placeholder" class="placeholder-box"><div style="font-size:28px;margin-bottom:8px;">👈</div><p style="font-size:13px;">เลือกเดือนเพื่อดูรายละเอียด</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE MODAL -->
+<div class="modal-overlay" id="del-modal">
+  <div class="modal">
+    <h3>🗑 ยืนยันการลบ</h3>
+    <p style="font-size:14px;color:var(--text-2);margin-bottom:4px;" id="del-msg"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeDelModal()">ยกเลิก</button>
+      <button class="btn" style="background:var(--red);color:#fff;" onclick="confirmDelete()">ลบ</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+</div><!-- app-body -->
+</div><!-- app-layout -->
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue, push, remove }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCnEp_yZPNKaWGxe2F5b5UQvUMTcwNVLhk",
+  authDomain: "grab-tracker-ea14b.firebaseapp.com",
+  databaseURL: "https://grab-tracker-ea14b-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "grab-tracker-ea14b",
+  storageBucket: "grab-tracker-ea14b.firebasestorage.app",
+  messagingSenderId: "914841797920",
+  appId: "1:914841797920:web:3ef111262a65276821c345"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const travelRef = ref(db, 'ot_travel/travel');
+const otRef = ref(db, 'ot_travel/ot');
+
+const TRAVEL_RATE = 7; // บาท/กม.
+const MONTHS_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+let travels = [];
+let otRecords = [];
+let selectedYear = new Date().getFullYear();
+let activeMonth = null;
+let pendingDelete = null; // { type, key }
+
+// ─── HELPERS ───
+const fmt = n => Number(n).toLocaleString('th-TH', {minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtInt = n => Number(n).toLocaleString('th-TH');
+const today = () => new Date().toISOString().slice(0,10);
+
+function showToast(msg, color='var(--blue)') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.background = color;
+  t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+function dateLabel(dateStr) {
+  const d = new Date(dateStr);
+  return `${d.getDate()} ${MONTHS_EN[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// ─── FIREBASE LISTENERS ───
+onValue(travelRef, snap => {
+  travels = [];
+  snap.forEach(c => travels.push({_key:c.key,...c.val()}));
+  travels.sort((a,b)=>a.date.localeCompare(b.date));
+  renderTravelStats(); renderTravelTable(); renderSummary();
+});
+
+onValue(otRef, snap => {
+  otRecords = [];
+  snap.forEach(c => otRecords.push({_key:c.key,...c.val()}));
+  otRecords.sort((a,b)=>a.savedAt.localeCompare(b.savedAt));
+  renderOTTable();
+});
+
+// ─── TABS ───
+window.switchTab = function(tab) {
+  ['travel','ot','summary'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===tab?'':'none';
+  });
+  document.querySelectorAll('.tab').forEach((el,i) => {
+    el.classList.toggle('active', ['travel','ot','summary'][i]===tab);
+  });
+  if (tab==='summary') renderSummary();
+}
+
+// ══════════════════════
+// TRAVEL
+// ══════════════════════
+window.previewTravel = function() {
+  const go = parseFloat(document.getElementById('t-go').value)||0;
+  const back = parseFloat(document.getElementById('t-back').value)||0;
+  const total = go+back;
+  const cost = total * TRAVEL_RATE;
+  const box = document.getElementById('travel-preview');
+  if (total > 0) {
+    document.getElementById('travel-preview-text').innerHTML =
+      `รวม <strong>${fmt(total)} กม.</strong> &nbsp;→&nbsp; ค่าเดินทาง <strong style="color:var(--blue);">฿${fmt(cost)}</strong>`;
+    box.style.display='';
+  } else { box.style.display='none'; }
+}
+
+window.saveTravel = async function() {
+  const date = document.getElementById('t-date').value;
+  const go = parseFloat(document.getElementById('t-go').value)||0;
+  const back = parseFloat(document.getElementById('t-back').value)||0;
+  const note = document.getElementById('t-note').value.trim();
+  if (!date) { showToast('⚠️ กรุณาเลือกวันที่','#f59e0b'); return; }
+  if (!go && !back) { showToast('⚠️ กรุณากรอกระยะทาง','#f59e0b'); return; }
+  const total = go+back;
+  const cost = total * TRAVEL_RATE;
+  await push(travelRef, {date, go, back, total, cost, note});
+  clearTravel();
+  showToast('✅ บันทึกค่าเดินทางแล้ว');
+}
+
+window.clearTravel = function() {
+  document.getElementById('t-date').value = today();
+  document.getElementById('t-go').value = '';
+  document.getElementById('t-back').value = '';
+  document.getElementById('t-note').value = '';
+  document.getElementById('travel-preview').style.display='none';
+}
+
+function renderTravelStats() {
+  const totalCost = travels.reduce((s,r)=>s+r.cost,0);
+  const totalDist = travels.reduce((s,r)=>s+r.total,0);
+  const days = travels.length;
+  const thisMonth = today().slice(0,7);
+  const monthCost = travels.filter(r=>r.date.startsWith(thisMonth)).reduce((s,r)=>s+r.cost,0);
+  document.getElementById('travel-stats').innerHTML = `
+    <div class="stat-card blue"><div class="sc-label">ค่าเดินทางรวม</div><div class="sc-val">฿${fmtInt(Math.round(totalCost))}</div><div class="sc-sub">ทั้งหมด</div></div>
+    <div class="stat-card"><div class="sc-label">เดือนนี้</div><div class="sc-val" style="color:var(--blue);">฿${fmtInt(Math.round(monthCost))}</div></div>
+    <div class="stat-card"><div class="sc-label">ระยะทางรวม</div><div class="sc-val">${fmtInt(Math.round(totalDist))}</div><div class="sc-sub">กิโลเมตร</div></div>
+    <div class="stat-card"><div class="sc-label">จำนวนวัน</div><div class="sc-val">${days}</div><div class="sc-sub">วัน</div></div>`;
+}
+
+function renderTravelTable() {
+  const filter = document.getElementById('t-filter').value;
+  let data = filter==='all' ? travels : travels.filter(r=>r.date.startsWith(filter));
+  const months = [...new Set(travels.map(r=>r.date.slice(0,7)))].sort();
+  const sel = document.getElementById('t-filter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="all">ทุกเดือน</option>' + months.map(m => {
+    const [y,mo] = m.split('-');
+    return `<option value="${m}" ${m===cur?'selected':''}>${MONTHS_EN[parseInt(mo)-1]} ${y}</option>`;
+  }).join('');
+  document.getElementById('travel-empty').style.display = data.length?'none':'';
+  document.getElementById('travel-body').innerHTML = data.map(r => `<tr>
+    <td>${dateLabel(r.date)}</td>
+    <td class="mono"><span class="chip chip-go">ไป</span> ${fmt(r.go)} กม.</td>
+    <td class="mono"><span class="chip chip-back">กลับ</span> ${fmt(r.back)} กม.</td>
+    <td class="mono">${fmt(r.total)} กม.</td>
+    <td class="mono pos">฿${fmt(r.cost)}</td>
+    <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
+    <td><button class="icon-btn" onclick="askDelete('travel','${r._key}','ค่าเดินทาง ${dateLabel(r.date)}')">🗑</button></td>
+  </tr>`).join('');
+}
+
+// ══════════════════════
+// OT
+// ══════════════════════
+window.calcOT = function() {
+  const salary = parseFloat(document.getElementById('ot-salary').value)||0;
+  const rate = parseFloat(document.getElementById('ot-rate').value)||1;
+  const hours = parseFloat(document.getElementById('ot-hours').value)||0;
+  const box = document.getElementById('ot-result');
+  if (!salary || !hours) { box.style.display='none'; return; }
+  const hourlyRate = salary / 30 / 8;
+  const otPay = hourlyRate * rate * hours;
+  document.getElementById('ot-result-val').textContent = `฿${fmt(otPay)}`;
+  document.getElementById('ot-formula').textContent =
+    `(${fmtInt(salary)} ÷ 30 ÷ 8) × ${rate} × ${hours} ชม.\n= ${fmt(hourlyRate)}/ชม. × ${rate} × ${hours} = ฿${fmt(otPay)}`;
+  box.style.display='';
+}
+
+window.saveOT = async function() {
+  const salary = parseFloat(document.getElementById('ot-salary').value)||0;
+  const rate = parseFloat(document.getElementById('ot-rate').value)||1;
+  const hours = parseFloat(document.getElementById('ot-hours').value)||0;
+  if (!salary||!hours) return;
+  const hourlyRate = salary/30/8;
+  const otPay = hourlyRate*rate*hours;
+  await push(otRef, {salary, rate, hours, otPay, savedAt: today()});
+  showToast('✅ บันทึก OT แล้ว','var(--orange)');
+}
+
+function renderOTTable() {
+  document.getElementById('ot-empty').style.display = otRecords.length?'none':'';
+  document.getElementById('ot-body').innerHTML = otRecords.map(r => `<tr>
+    <td>${dateLabel(r.savedAt)}</td>
+    <td class="mono">฿${fmtInt(r.salary)}</td>
+    <td class="mono">× ${r.rate}</td>
+    <td class="mono">${r.hours} ชม.</td>
+    <td class="mono" style="color:var(--orange);font-weight:600;">฿${fmt(r.otPay)}</td>
+    <td><button class="icon-btn" onclick="askDelete('ot','${r._key}','OT ${dateLabel(r.savedAt)}')">🗑</button></td>
+  </tr>`).join('');
+}
+
+// ══════════════════════
+// SUMMARY
+// ══════════════════════
+function getYears() {
+  const y = [...new Set(travels.map(r=>r.date.slice(0,4)))];
+  const cur = String(new Date().getFullYear());
+  if (!y.includes(cur)) y.push(cur);
+  return y.sort();
+}
+
+window.changeYear = function(d) {
+  const years = getYears();
+  const idx = years.indexOf(String(selectedYear));
+  selectedYear = parseInt(years[Math.max(0,Math.min(years.length-1,idx+d))]);
+  activeMonth = null;
+  renderSummary();
+}
+
+window.selectYear = function(v) {
+  selectedYear = parseInt(v); activeMonth = null; renderSummary();
+}
+
+function renderSummary() {
+  const ys = String(selectedYear);
+  document.getElementById('sum-year-label').textContent = ys;
+  const years = getYears();
+  document.getElementById('sum-year-sel').innerHTML = years.map(y=>`<option value="${y}" ${y===ys?'selected':''}>${y}</option>`).join('');
+
+  const yRecs = travels.filter(r=>r.date.startsWith(ys));
+  const yCost = yRecs.reduce((s,r)=>s+r.cost,0);
+  const yDist = yRecs.reduce((s,r)=>s+r.total,0);
+  const yDays = yRecs.length;
+  document.getElementById('sum-year-stats').innerHTML = `
+    <div class="stat-card blue"><div class="sc-label">ค่าเดินทางรวมปี ${ys}</div><div class="sc-val">฿${fmtInt(Math.round(yCost))}</div></div>
+    <div class="stat-card"><div class="sc-label">ระยะทางรวม</div><div class="sc-val">${fmtInt(Math.round(yDist))} <span style="font-size:12px;font-weight:400;">กม.</span></div></div>
+    <div class="stat-card"><div class="sc-label">จำนวนวัน</div><div class="sc-val">${yDays} วัน</div></div>`;
+
+  document.getElementById('sum-month-list').innerHTML = MONTHS_EN.map((m,idx) => {
+    const mo = String(idx+1).padStart(2,'0');
+    const key = `${ys}-${mo}`;
+    const recs = travels.filter(r=>r.date.startsWith(key));
+    const cost = recs.reduce((s,r)=>s+r.cost,0);
+    const hasData = recs.length > 0;
+    return `<div class="month-row ${!hasData?'no-data':''} ${activeMonth===key?'active':''}"
+      onclick="${hasData?`showMonthDetail('${key}','${m}')`:''}" >
+      <div class="mr-name">${m}</div>
+      <div class="mr-val">${hasData?'฿'+fmtInt(Math.round(cost)):'—'}</div>
+    </div>`;
+  }).join('');
+
+  if (activeMonth && !activeMonth.startsWith(ys)) {
+    activeMonth = null;
+    document.getElementById('sum-detail').style.display='none';
+    document.getElementById('sum-placeholder').style.display='';
+  }
+}
+
+window.showMonthDetail = function(key, monthName) {
+  activeMonth = key;
+  document.querySelectorAll('.month-row').forEach(el=>el.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  const recs = travels.filter(r=>r.date.startsWith(key));
+  const [y,mo] = key.split('-');
+  const cost = recs.reduce((s,r)=>s+r.cost,0);
+  const dist = recs.reduce((s,r)=>s+r.total,0);
+  const detail = document.getElementById('sum-detail');
+  detail.innerHTML = `
+    <div class="form-card" style="margin-bottom:12px;">
+      <div class="fc-title" style="margin-bottom:12px;">${monthName} ${y}</div>
+      <div class="stat-row" style="margin-bottom:0;">
+        <div class="stat-card blue"><div class="sc-label">ค่าเดินทาง</div><div class="sc-val">฿${fmtInt(Math.round(cost))}</div></div>
+        <div class="stat-card"><div class="sc-label">ระยะทางรวม</div><div class="sc-val">${fmtInt(Math.round(dist))} <span style="font-size:11px;">กม.</span></div></div>
+        <div class="stat-card"><div class="sc-label">จำนวนวัน</div><div class="sc-val">${recs.length} วัน</div></div>
+      </div>
+    </div>
+    <div class="tbl-card">
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>วันที่</th><th>ขาไป</th><th>ขากลับ</th><th>รวม</th><th>ค่าเดินทาง</th><th>หมายเหตุ</th></tr></thead>
+          <tbody>${recs.map(r=>`<tr>
+            <td>${dateLabel(r.date)}</td>
+            <td class="mono">${fmt(r.go)} กม.</td>
+            <td class="mono">${fmt(r.back)} กม.</td>
+            <td class="mono">${fmt(r.total)} กม.</td>
+            <td class="mono pos">฿${fmt(r.cost)}</td>
+            <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>`;
+  detail.style.display='';
+  document.getElementById('sum-placeholder').style.display='none';
+}
+
+// ══════════════════════
+// DELETE
+// ══════════════════════
+window.askDelete = function(type, key, label) {
+  pendingDelete = {type, key};
+  document.getElementById('del-msg').textContent = `ต้องการลบ "${label}" ใช่หรือไม่?`;
+  document.getElementById('del-modal').classList.add('show');
+}
+window.closeDelModal = function() {
+  document.getElementById('del-modal').classList.remove('show');
+  pendingDelete = null;
+}
+window.confirmDelete = async function() {
+  if (!pendingDelete) return;
+  const {type, key} = pendingDelete;
+  const r = type==='travel' ? ref(db,'ot_travel/travel/'+key) : ref(db,'ot_travel/ot/'+key);
+  await remove(r);
+  closeDelModal();
+  showToast('🗑 ลบแล้ว','#dc2626');
+}
+document.getElementById('del-modal').addEventListener('click', function(e){ if(e.target===this) closeDelModal(); });
+
+// ─── INIT ───
+document.getElementById('t-date').value = today();
+</script>
+</body>
+</html>
