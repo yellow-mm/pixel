@@ -516,13 +516,13 @@ window.clearTravel = function() {
 }
 
 function renderTravelStats() {
-  const totalCost = travels.reduce((s,r)=>s+r.cost,0);
+  const totalCost = travels.reduce((s,r)=>s+(r.grand!=null?r.grand:r.cost),0);
   const totalDist = travels.reduce((s,r)=>s+r.total,0);
   const days = travels.length;
   const thisMonth = today().slice(0,7);
-  const monthCost = travels.filter(r=>r.date.startsWith(thisMonth)).reduce((s,r)=>s+r.cost,0);
+  const monthCost = travels.filter(r=>r.date.startsWith(thisMonth)).reduce((s,r)=>s+(r.grand!=null?r.grand:r.cost),0);
   document.getElementById('travel-stats').innerHTML = `
-    <div class="stat-card blue"><div class="sc-label">ค่าเดินทางรวม</div><div class="sc-val">฿${fmtInt(Math.round(totalCost))}</div><div class="sc-sub">ทั้งหมด</div></div>
+    <div class="stat-card blue"><div class="sc-label">ค่าเดินทาง+ทางด่วนรวม</div><div class="sc-val">฿${fmtInt(Math.round(totalCost))}</div><div class="sc-sub">ทั้งหมด</div></div>
     <div class="stat-card"><div class="sc-label">เดือนนี้</div><div class="sc-val" style="color:var(--blue);">฿${fmtInt(Math.round(monthCost))}</div></div>
     <div class="stat-card"><div class="sc-label">ระยะทางรวม</div><div class="sc-val">${fmtInt(Math.round(totalDist))}</div><div class="sc-sub">กิโลเมตร</div></div>
     <div class="stat-card"><div class="sc-label">จำนวนวัน</div><div class="sc-val">${days}</div><div class="sc-sub">วัน</div></div>`;
@@ -885,7 +885,7 @@ window.showMonthDetail = function(e, key, monthName) {
               <td class="mono">${fmt(r.go)} กม.</td>
               <td class="mono">${fmt(r.back)} กม.</td>
               <td class="mono">${fmt(r.total)} กม.</td>
-              <td class="mono pos">฿${fmt(r.cost)}</td>
+              <td class="mono pos">฿${fmt(r.grand!=null?r.grand:r.cost)}</td>
               <td>${r.approve?`<div style="font-size:11px;">${dateLabel(r.approve)}</div><div style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:20px;display:inline-block;background:${chipBg};color:${chipColor};">${pp.label}</div>`:'<span style="color:var(--text-3);font-size:12px;">—</span>'}</td>
               <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
             </tr>`;
