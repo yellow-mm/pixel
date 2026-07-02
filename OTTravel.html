@@ -205,6 +205,7 @@
       <div class="fg"><label>วันที่</label><input type="date" id="t-date"></div>
       <div class="fg"><label>ขาไป (กม.)</label><input type="number" id="t-go" placeholder="0" step="0.1" min="0" oninput="previewTravel()"></div>
       <div class="fg"><label>ขากลับ (กม.)</label><input type="number" id="t-back" placeholder="0" step="0.1" min="0" oninput="previewTravel()"></div>
+      <div class="fg"><label>ค่าทางด่วน (บาท)</label><input type="number" id="t-toll" placeholder="0" step="1" min="0" oninput="previewTravel()"></div>
       <div class="fg"><label>หมายเหตุ</label><input type="text" id="t-note" placeholder="เช่น ไปประชุม"></div>
       <div class="fg"><label>วันที่อนุมัติ</label><input type="date" id="t-approve"></div>
     </div>
@@ -221,13 +222,13 @@
   <div class="tbl-card">
     <div class="tbl-head">
       <h3>📋 รายการ</h3>
-      <select id="t-filter" onchange="renderTravelTable()" style="padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;background:var(--bg);color:var(--text);outline:none;">
+      <select id="t-filter" onchange="tFilterVal=this.value;renderTravelTable()" style="padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;background:var(--bg);color:var(--text);outline:none;">
         <option value="all">ทุกเดือน</option>
       </select>
     </div>
     <div style="overflow-x:auto;">
       <table>
-        <thead><tr><th>วันที่</th><th>ขาไป</th><th>ขากลับ</th><th>รวม กม.</th><th>ค่าเดินทาง</th><th>วันอนุมัติ</th><th>หมายเหตุ</th><th></th></tr></thead>
+        <thead><tr><th>วันที่</th><th>ขาไป</th><th>ขากลับ</th><th>รวม กม.</th><th>ค่าเดินทาง</th><th>ทางด่วน</th><th>รวมทั้งหมด</th><th>วันอนุมัติ / รับเงิน</th><th>หมายเหตุ</th><th></th></tr></thead>
         <tbody id="travel-body"></tbody>
       </table>
     </div>
@@ -274,7 +275,7 @@
   <div class="tbl-card">
     <div class="tbl-head">
       <h3>📋 ประวัติ OT</h3>
-      <select id="ot-filter" onchange="renderOTTable()" style="padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;background:var(--bg);color:var(--text);outline:none;">
+      <select id="ot-filter" onchange="otFilterVal=this.value;renderOTTable()" style="padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;background:var(--bg);color:var(--text);outline:none;">
         <option value="all">ทุกเดือน</option>
       </select>
     </div>
@@ -292,12 +293,19 @@
      TAB: SUMMARY
 ══════════════════════════════════════════ -->
 <div id="tab-summary" class="content" style="display:none;">
-  <!-- year nav -->
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+  <!-- year nav + pay filter -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
     <button onclick="changeYear(-1)" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:15px;color:var(--text-2);">◀</button>
     <div id="sum-year-label" style="font-size:16px;font-weight:700;min-width:60px;text-align:center;"></div>
     <button onclick="changeYear(1)" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:15px;color:var(--text-2);">▶</button>
     <select id="sum-year-sel" onchange="selectYear(this.value)" style="padding:7px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;background:var(--bg);color:var(--text);outline:none;"></select>
+    <div style="margin-left:12px;padding-left:12px;border-left:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+      <span style="font-size:12px;color:var(--text-3);">แสดงตาม:</span>
+      <select id="sum-view-mode" onchange="renderSummary()" style="padding:7px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;background:var(--bg);color:var(--text);outline:none;">
+        <option value="work">เดือนที่ทำ OT/เดินทาง</option>
+        <option value="pay">เดือนที่ได้รับเงิน</option>
+      </select>
+    </div>
   </div>
 
   <!-- year totals -->
@@ -336,6 +344,7 @@
       <div class="fg"><label>วันที่</label><input type="date" id="et-date"></div>
       <div class="fg"><label>ขาไป (กม.)</label><input type="number" id="et-go" step="0.1" min="0"></div>
       <div class="fg"><label>ขากลับ (กม.)</label><input type="number" id="et-back" step="0.1" min="0"></div>
+      <div class="fg"><label>ค่าทางด่วน (บาท)</label><input type="number" id="et-toll" step="1" min="0" placeholder="0"></div>
       <div class="fg"><label>หมายเหตุ</label><input type="text" id="et-note"></div>
       <div class="fg"><label>วันที่อนุมัติ</label><input type="date" id="et-approve"></div>
     </div>
@@ -466,12 +475,15 @@ window.switchTab = function(tab) {
 window.previewTravel = function() {
   const go = parseFloat(document.getElementById('t-go').value)||0;
   const back = parseFloat(document.getElementById('t-back').value)||0;
+  const toll = parseFloat(document.getElementById('t-toll').value)||0;
   const total = go+back;
   const cost = total * TRAVEL_RATE;
+  const grand = cost + toll;
   const box = document.getElementById('travel-preview');
-  if (total > 0) {
+  if (total > 0 || toll > 0) {
     document.getElementById('travel-preview-text').innerHTML =
-      `รวม <strong>${fmt(total)} กม.</strong> &nbsp;→&nbsp; ค่าเดินทาง <strong style="color:var(--blue);">฿${fmt(cost)}</strong>`;
+      `รวม <strong>${fmt(total)} กม.</strong> → ค่าเดินทาง <strong style="color:var(--blue);">฿${fmt(cost)}</strong>`+
+      (toll > 0 ? ` + ทางด่วน <strong style="color:var(--blue);">฿${fmt(toll)}</strong> = รวม <strong style="color:var(--blue);">฿${fmt(grand)}</strong>` : '');
     box.style.display='';
   } else { box.style.display='none'; }
 }
@@ -480,13 +492,15 @@ window.saveTravel = async function() {
   const date = document.getElementById('t-date').value;
   const go = parseFloat(document.getElementById('t-go').value)||0;
   const back = parseFloat(document.getElementById('t-back').value)||0;
+  const toll = parseFloat(document.getElementById('t-toll').value)||0;
   const note = document.getElementById('t-note').value.trim();
   const approve = document.getElementById('t-approve').value;
   if (!date) { showToast('⚠️ กรุณาเลือกวันที่','#f59e0b'); return; }
   if (!go && !back) { showToast('⚠️ กรุณากรอกระยะทาง','#f59e0b'); return; }
   const total = go+back;
   const cost = total * TRAVEL_RATE;
-  await push(travelRef, {date, go, back, total, cost, note, approve});
+  const grand = cost + toll;
+  await push(travelRef, {date, go, back, total, cost, toll, grand, note, approve});
   clearTravel();
   showToast('✅ บันทึกค่าเดินทางแล้ว');
 }
@@ -496,6 +510,7 @@ window.clearTravel = function() {
   document.getElementById('t-go').value = '';
   document.getElementById('t-back').value = '';
   document.getElementById('t-note').value = '';
+  document.getElementById('t-toll').value = '';
   document.getElementById('t-approve').value = '';
   document.getElementById('travel-preview').style.display='none';
 }
@@ -514,7 +529,7 @@ function renderTravelStats() {
 }
 
 function renderTravelTable() {
-  const filter = buildMonthFilter('t-filter', travels);
+  const filter = buildMonthFilter('t-filter', travels, 't');
   const data = filter==='all' ? travels : travels.filter(r=>r.date.startsWith(filter));
 
   // สรุปรอบตัด approve 1-15 vs 16+
@@ -523,8 +538,8 @@ function renderTravelTable() {
     const approved = data.filter(r=>r.approve);
     const cut1 = approved.filter(r=>new Date(r.approve).getDate()<=15);
     const cut2 = approved.filter(r=>new Date(r.approve).getDate()>15);
-    const pay1 = cut1.reduce((s,r)=>s+r.cost,0);
-    const pay2 = cut2.reduce((s,r)=>s+r.cost,0);
+    const pay1 = cut1.reduce((s,r)=>s+(r.grand!=null?r.grand:r.cost),0);
+    const pay2 = cut2.reduce((s,r)=>s+(r.grand!=null?r.grand:r.cost),0);
     if (approved.length) summaryHtml = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
         <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:11px;padding:12px 16px;">
@@ -545,15 +560,18 @@ function renderTravelTable() {
     const pp = payPeriod(r.approve);
     const chipColor = pp.chip==='ok'?'#16a34a':pp.chip==='next'?'var(--orange)':'#aaa';
     const chipBg = pp.chip==='ok'?'#f0fdf4':pp.chip==='next'?'#fff7ed':'#f4f4f4';
+    const grandTotal = (r.grand != null) ? r.grand : r.cost;
     return `<tr>
       <td>${dateLabel(r.date)}</td>
       <td class="mono"><span class="chip chip-go">ไป</span> ${fmt(r.go)} กม.</td>
       <td class="mono"><span class="chip chip-back">กลับ</span> ${fmt(r.back)} กม.</td>
       <td class="mono">${fmt(r.total)} กม.</td>
-      <td class="mono pos">฿${fmt(r.cost)}</td>
+      <td class="mono">฿${fmt(r.cost)}</td>
+      <td class="mono">${(r.toll||0)>0?'฿'+fmt(r.toll):'—'}</td>
+      <td class="mono pos">฿${fmt(grandTotal)}</td>
       <td>
         ${r.approve ? `<div style="font-size:11px;color:var(--text-2);">${dateLabel(r.approve)}</div>
-        <div style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:20px;display:inline-block;background:${chipBg};color:${chipColor};margin-top:2px;">${pp.label}</div>` : '<span style="color:var(--text-3);font-size:12px;">—</span>'}
+        <div style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;display:inline-block;background:${chipBg};color:${chipColor};margin-top:2px;">${pp.label}</div>` : '<span style="color:var(--text-3);font-size:12px;">—</span>'}
       </td>
       <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
       <td style="display:flex;gap:4px;">
@@ -625,35 +643,38 @@ window.saveOT = async function() {
 }
 
 // ── FILTER HELPER (fixed) ──
-function buildMonthFilter(selectId, recs) {
+function buildMonthFilter(selectId, recs, stateVar) {
   const sel = document.getElementById(selectId);
-  const prev = sel.value;
   const months = [...new Set(recs.map(r=>r.date.slice(0,7)))].sort();
   sel.innerHTML = '<option value="all">ทุกเดือน</option>' +
     months.map(m => {
       const [y,mo] = m.split('-');
       return `<option value="${m}">${MONTHS_EN[parseInt(mo)-1]} ${y}</option>`;
     }).join('');
-  sel.value = (prev && months.includes(prev)) ? prev : 'all';
+  // restore from JS var (not DOM) to avoid reset bug
+  const cur = stateVar === 't' ? tFilterVal : otFilterVal;
+  sel.value = (cur && months.includes(cur)) ? cur : 'all';
   return sel.value;
 }
 
 // ── รอบจ่าย: approve ≤ 15 → เดือนนั้น, 16+ → เดือนถัดไป ──
 function payPeriod(approveDate) {
-  if (!approveDate) return { label: '—', chip: '' };
+  if (!approveDate) return { label: '—', payMonth: '', chip: '' };
   const d = new Date(approveDate);
   const day = d.getDate();
   if (day <= 15) {
-    const y = d.getFullYear(); const m = d.getMonth();
-    return { label: `${MONTHS_EN[m]} ${y} (1-15)`, chip: 'ok' };
+    const y = d.getFullYear(); const mo = d.getMonth();
+    const label = `ได้เงิน: สิ้น${MONTHS_EN[mo]} ${y}`;
+    return { label, payMonth: `${y}-${String(mo+1).padStart(2,'0')}`, chip: 'ok' };
   } else {
     const next = new Date(d.getFullYear(), d.getMonth()+1, 1);
-    return { label: `${MONTHS_EN[next.getMonth()]} ${next.getFullYear()} (ถัดไป)`, chip: 'next' };
+    const label = `ได้เงิน: สิ้น${MONTHS_EN[next.getMonth()]} ${next.getFullYear()}`;
+    return { label, payMonth: `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}`, chip: 'next' };
   }
 }
 
 function renderOTTable() {
-  const filter = buildMonthFilter('ot-filter', otRecords);
+  const filter = buildMonthFilter('ot-filter', otRecords, 'ot');
   const data = filter==='all' ? otRecords : otRecords.filter(r=>r.date.startsWith(filter));
 
   // สรุปรอบตัด (approve 1-15 vs 16+)
@@ -743,32 +764,49 @@ window.selectYear = function(v) {
 
 function renderSummary() {
   const el = document.getElementById('sum-year-label');
-  if (!el) return; // guard: elements not in DOM yet
+  if (!el) return;
   const ys = String(selectedYear);
   document.getElementById('sum-year-label').textContent = ys;
   const years = getYears();
   document.getElementById('sum-year-sel').innerHTML = years.map(y=>`<option value="${y}" ${y===ys?'selected':''}>${y}</option>`).join('');
 
-  const yTravel = travels.filter(r=>r.date.startsWith(ys));
-  const yOT = otRecords.filter(r=>r.date.startsWith(ys));
-  const yCost = yTravel.reduce((s,r)=>s+r.cost,0);
-  const yOTPay = yOT.reduce((s,r)=>s+r.otPay,0);
-  const yOTHours = Math.round(yOT.reduce((s,r)=>s+r.hours,0) * 100) / 100;
+  const viewMode = document.getElementById('sum-view-mode')?.value || 'work';
+
+  function tRecsForMonth(key) {
+    if (viewMode==='pay') return travels.filter(r=>{ const pp=payPeriod(r.approve); return pp.payMonth===key; });
+    return travels.filter(r=>r.date.startsWith(key));
+  }
+  function oRecsForMonth(key) {
+    if (viewMode==='pay') return otRecords.filter(r=>{ const pp=payPeriod(r.approve); return pp.payMonth===key; });
+    return otRecords.filter(r=>r.date.startsWith(key));
+  }
+
+  const allT = viewMode==='pay'
+    ? travels.filter(r=>{ const pp=payPeriod(r.approve); return pp.payMonth&&pp.payMonth.startsWith(ys); })
+    : travels.filter(r=>r.date.startsWith(ys));
+  const allO = viewMode==='pay'
+    ? otRecords.filter(r=>{ const pp=payPeriod(r.approve); return pp.payMonth&&pp.payMonth.startsWith(ys); })
+    : otRecords.filter(r=>r.date.startsWith(ys));
+
+  const yCost = allT.reduce((s,r)=>s+(r.grand!=null?r.grand:r.cost),0);
+  const yOTPay = allO.reduce((s,r)=>s+r.otPay,0);
+  const yOTHours = Math.round(allO.reduce((s,r)=>s+r.hours,0)*100)/100;
+  const yTotal = yCost+yOTPay;
 
   document.getElementById('sum-year-stats').innerHTML = `
-    <div class="stat-card blue"><div class="sc-label">ค่าเดินทางรวม</div><div class="sc-val">฿${fmtInt(Math.round(yCost))}</div></div>
-    <div class="stat-card" style="border-left:3px solid var(--orange);"><div class="sc-label">ค่า OT รวม</div><div class="sc-val" style="color:var(--orange);">฿${fmtInt(Math.round(yOTPay))}</div></div>
-    <div class="stat-card"><div class="sc-label">ชม. OT รวม</div><div class="sc-val">${yOTHours} <span style="font-size:11px;">ชม.</span></div></div>
-    <div class="stat-card"><div class="sc-label">วันเดินทาง</div><div class="sc-val">${yTravel.length} วัน</div></div>`;
+    <div class="stat-card blue"><div class="sc-label">${viewMode==='pay'?'ค่าเดินทางที่รับ':'ค่าเดินทางรวม'}</div><div class="sc-val">฿${fmtInt(Math.round(yCost))}</div></div>
+    <div class="stat-card" style="border-left:3px solid var(--orange);"><div class="sc-label">${viewMode==='pay'?'ค่า OT ที่รับ':'ค่า OT รวม'}</div><div class="sc-val" style="color:var(--orange);">฿${fmtInt(Math.round(yOTPay))}</div></div>
+    <div class="stat-card" style="border-left:3px solid #7c3aed;"><div class="sc-label">รวมทั้งหมด</div><div class="sc-val" style="color:#7c3aed;">฿${fmtInt(Math.round(yTotal))}</div></div>
+    <div class="stat-card"><div class="sc-label">ชม. OT</div><div class="sc-val">${yOTHours}<span style="font-size:11px;"> ชม.</span></div></div>`;
 
   document.getElementById('sum-month-list').innerHTML = MONTHS_EN.map((m,idx) => {
     const mo = String(idx+1).padStart(2,'0');
     const key = `${ys}-${mo}`;
-    const tRecs = travels.filter(r=>r.date.startsWith(key));
-    const oRecs = otRecords.filter(r=>r.date.startsWith(key));
-    const cost = tRecs.reduce((s,r)=>s+r.cost,0);
+    const tRecs = tRecsForMonth(key);
+    const oRecs = oRecsForMonth(key);
+    const cost = tRecs.reduce((s,r)=>s+(r.grand!=null?r.grand:r.cost),0);
     const otPay = oRecs.reduce((s,r)=>s+r.otPay,0);
-    const hasData = tRecs.length>0 || oRecs.length>0;
+    const hasData = tRecs.length>0||oRecs.length>0;
     return `<div class="month-row ${!hasData?'no-data':''} ${activeMonth===key?'active':''}"
       onclick="${hasData?`showMonthDetail(event,'${key}','${m}')`:''}" >
       <div>
@@ -779,8 +817,8 @@ function renderSummary() {
     </div>`;
   }).join('');
 
-  if (activeMonth && !activeMonth.startsWith(ys)) {
-    activeMonth = null;
+  if (activeMonth&&!activeMonth.startsWith(ys)) {
+    activeMonth=null;
     document.getElementById('sum-detail').style.display='none';
     document.getElementById('sum-placeholder').style.display='';
   }
@@ -791,19 +829,31 @@ window.showMonthDetail = function(e, key, monthName) {
   document.querySelectorAll('.month-row').forEach(el=>el.classList.remove('active'));
   e.currentTarget.classList.add('active');
   const [y] = key.split('-');
-  const tRecs = travels.filter(r=>r.date.startsWith(key));
-  const oRecs = otRecords.filter(r=>r.date.startsWith(key));
-  const cost = tRecs.reduce((s,r)=>s+r.cost,0);
+  const viewMode = document.getElementById('sum-view-mode')?.value || 'work';
+  function tRecsForMonth(k) {
+    if (viewMode==='pay') return travels.filter(r=>{ const pp=payPeriod(r.approve); return pp.payMonth===k; });
+    return travels.filter(r=>r.date.startsWith(k));
+  }
+  function oRecsForMonth(k) {
+    if (viewMode==='pay') return otRecords.filter(r=>{ const pp=payPeriod(r.approve); return pp.payMonth===k; });
+    return otRecords.filter(r=>r.date.startsWith(k));
+  }
+  const tRecs = tRecsForMonth(key);
+  const oRecs = oRecsForMonth(key);
+  const cost = tRecs.reduce((s,r)=>s+(r.grand!=null?r.grand:r.cost),0);
   const dist = tRecs.reduce((s,r)=>s+r.total,0);
   const otPay = oRecs.reduce((s,r)=>s+r.otPay,0);
-  const otHours = Math.round(oRecs.reduce((s,r)=>s+r.hours,0) * 100) / 100;
+  const otHours = Math.round(oRecs.reduce((s,r)=>s+r.hours,0)*100)/100;
+  const grandTotal = cost+otPay;
+  const modeLabel = viewMode==='pay' ? `รับเงินสิ้นเดือน ${monthName} ${y}` : `${monthName} ${y}`;
   const detail = document.getElementById('sum-detail');
   detail.innerHTML = `
     <div class="form-card" style="margin-bottom:12px;">
-      <div class="fc-title" style="margin-bottom:12px;">${monthName} ${y}</div>
+      <div class="fc-title" style="margin-bottom:12px;">${modeLabel}</div>
       <div class="stat-row" style="margin-bottom:0;">
         <div class="stat-card blue"><div class="sc-label">ค่าเดินทาง</div><div class="sc-val">฿${fmtInt(Math.round(cost))}</div><div class="sc-sub">${tRecs.length} วัน · ${fmtInt(Math.round(dist))} กม.</div></div>
         <div class="stat-card" style="border-left:3px solid var(--orange);"><div class="sc-label">ค่า OT</div><div class="sc-val" style="color:var(--orange);">฿${fmtInt(Math.round(otPay))}</div><div class="sc-sub">${oRecs.length} ครั้ง · ${otHours} ชม.</div></div>
+        <div class="stat-card" style="border-left:3px solid #7c3aed;"><div class="sc-label">รวมที่ได้รับ</div><div class="sc-val" style="color:#7c3aed;">฿${fmtInt(Math.round(grandTotal))}</div></div>
       </div>
     </div>
     ${tRecs.length ? `
@@ -860,12 +910,15 @@ window.showMonthDetail = function(e, key, monthName) {
 // EDIT TRAVEL
 // ══════════════════════
 let editTravelKey = null;
+let tFilterVal = 'all';
+let otFilterVal = 'all';
 window.openEditTravel = function(key) {
   editTravelKey = key;
   const r = travels.find(r=>r._key===key);
   document.getElementById('et-date').value = r.date;
   document.getElementById('et-go').value = r.go;
   document.getElementById('et-back').value = r.back;
+  document.getElementById('et-toll').value = r.toll||0;
   document.getElementById('et-note').value = r.note||'';
   document.getElementById('et-approve').value = r.approve||'';
   document.getElementById('edit-travel-modal').classList.add('show');
@@ -879,12 +932,14 @@ window.saveEditTravel = async function() {
   const date = document.getElementById('et-date').value;
   const go = parseFloat(document.getElementById('et-go').value)||0;
   const back = parseFloat(document.getElementById('et-back').value)||0;
+  const toll = parseFloat(document.getElementById('et-toll').value)||0;
   const note = document.getElementById('et-note').value.trim();
   const approve = document.getElementById('et-approve').value;
   if (!date) { showToast('⚠️ กรุณาเลือกวันที่','#f59e0b'); return; }
   const total = go+back;
   const cost = total * TRAVEL_RATE;
-  await update(dbRef(db,'ot_travel/travel/'+editTravelKey), {date, go, back, total, cost, note, approve});
+  const grand = cost + toll;
+  await update(dbRef(db,'ot_travel/travel/'+editTravelKey), {date, go, back, total, cost, toll, grand, note, approve});
   closeEditTravel();
   showToast('✏️ แก้ไขค่าเดินทางแล้ว','var(--blue)');
 }
