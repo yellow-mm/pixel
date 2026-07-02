@@ -248,15 +248,16 @@
       <div class="fg">
         <label>อัตราตัวคูณ</label>
         <select id="ot-rate" onchange="calcOT()">
-          <option value="1">× 1 (วันหยุด)</option>
-          <option value="1.5">× 1.5 (วันทำงาน)</option>
+          <option value="1">× 1 (วันปกติ)</option>
+          <option value="1.5">× 1.5 (วันหยุด)</option>
           <option value="3">× 3 (วันหยุดนักขัตฤกษ์)</option>
         </select>
       </div>
       <div class="fg"><label>หมายเหตุ</label><input type="text" id="ot-note" placeholder="เช่น ประชุมนอกเวลา"></div>
+      <div class="fg"><label>วันที่อนุมัติ</label><input type="date" id="ot-approve"></div>
     </div>
     <div style="background:#f8f9fb;border-radius:10px;padding:11px 14px;margin-top:12px;font-size:12px;color:var(--text-3);">
-      ชั่วโมงทำงานปกติ: <strong style="color:var(--text);">8 ชม./วัน</strong> &nbsp;·&nbsp; สูตร: (เงินเดือน ÷ 30 ÷ 8) × ตัวคูณ × ชม. OT
+      ชั่วโมงทำงานปกติ: <strong style="color:var(--text);">8 ชม./วัน</strong> &nbsp;·&nbsp; สูตร: (เงินเดือน ÷ 30 ÷ 8) × ตัวคูณ × ชม. OT &nbsp;·&nbsp; รอบจ่าย: ≤15 ได้เดือนนั้น / 16+ ยกไปเดือนถัดไป
     </div>
     <div class="ot-result" id="ot-result" style="display:none;">
       <div>
@@ -278,7 +279,7 @@
     </div>
     <div style="overflow-x:auto;">
       <table>
-        <thead><tr><th>วันที่</th><th>เวลา</th><th>ชม. OT</th><th>เงินเดือน</th><th>ตัวคูณ</th><th>ค่า OT</th><th>หมายเหตุ</th><th></th></tr></thead>
+        <thead><tr><th>วันที่</th><th>เวลา</th><th>ชม. OT</th><th>เงินเดือน</th><th>ตัวคูณ</th><th>ค่า OT</th><th>วันอนุมัติ</th><th>หมายเหตุ</th><th></th></tr></thead>
         <tbody id="ot-body"></tbody>
       </table>
     </div>
@@ -361,6 +362,7 @@
         </select>
       </div>
       <div class="fg"><label>หมายเหตุ</label><input type="text" id="eo-note"></div>
+      <div class="fg"><label>วันที่อนุมัติ</label><input type="date" id="eo-approve"></div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeEditOT()">ยกเลิก</button>
@@ -508,16 +510,7 @@ function renderTravelStats() {
 }
 
 function renderTravelTable() {
-  const sel = document.getElementById('t-filter');
-  const cur = sel.value; // เก็บค่าก่อน rebuild
-  const months = [...new Set(travels.map(r=>r.date.slice(0,7)))].sort();
-  sel.innerHTML = '<option value="all">ทุกเดือน</option>' + months.map(m => {
-    const [y,mo] = m.split('-');
-    return `<option value="${m}">${MONTHS_EN[parseInt(mo)-1]} ${y}</option>`;
-  }).join('');
-  // restore selected value หลัง rebuild
-  sel.value = (cur && [...sel.options].some(o=>o.value===cur)) ? cur : 'all';
-  const filter = sel.value;
+  const filter = buildMonthFilter('t-filter', travels);
   const data = filter==='all' ? travels : travels.filter(r=>r.date.startsWith(filter));
   document.getElementById('travel-empty').style.display = data.length?'none':'';
   document.getElementById('travel-body').innerHTML = data.map(r => `<tr>
@@ -569,6 +562,7 @@ window.saveOT = async function() {
   const rate = parseFloat(document.getElementById('ot-rate').value)||1;
   const start = document.getElementById('ot-start').value;
   const end = document.getElementById('ot-end').value;
+  const approve = document.getElementById('ot-approve').value;
   if (!date) { showToast('⚠️ กรุณาเลือกวันที่','#f59e0b'); return; }
   if (!salary||!start||!end) { showToast('⚠️ กรุณากรอกข้อมูลให้ครบ','#f59e0b'); return; }
   const startMin = timeToMinutes(start);
@@ -578,35 +572,99 @@ window.saveOT = async function() {
   const hourlyRate = salary/30/8;
   const otPay = hourlyRate*rate*hours;
   const note = document.getElementById('ot-note').value.trim();
-  await push(otRef, {date, start, end, hours, salary, rate, otPay, note});
+  await push(otRef, {date, start, end, hours, salary, rate, otPay, note, approve});
   showToast('✅ บันทึก OT แล้ว','var(--orange)');
 }
 
+// ── FILTER HELPER (fixed) ──
+function buildMonthFilter(selectId, recs) {
+  const sel = document.getElementById(selectId);
+  const prev = sel.value;
+  const months = [...new Set(recs.map(r=>r.date.slice(0,7)))].sort();
+  sel.innerHTML = '<option value="all">ทุกเดือน</option>' +
+    months.map(m => {
+      const [y,mo] = m.split('-');
+      return `<option value="${m}">${MONTHS_EN[parseInt(mo)-1]} ${y}</option>`;
+    }).join('');
+  sel.value = (prev && months.includes(prev)) ? prev : 'all';
+  return sel.value;
+}
+
+// ── รอบจ่าย: approve ≤ 15 → เดือนนั้น, 16+ → เดือนถัดไป ──
+function payPeriod(approveDate) {
+  if (!approveDate) return { label: '—', chip: '' };
+  const d = new Date(approveDate);
+  const day = d.getDate();
+  if (day <= 15) {
+    const y = d.getFullYear(); const m = d.getMonth();
+    return { label: `${MONTHS_EN[m]} ${y} (1-15)`, chip: 'ok' };
+  } else {
+    const next = new Date(d.getFullYear(), d.getMonth()+1, 1);
+    return { label: `${MONTHS_EN[next.getMonth()]} ${next.getFullYear()} (ถัดไป)`, chip: 'next' };
+  }
+}
+
 function renderOTTable() {
-  const sel = document.getElementById('ot-filter');
-  const cur = sel.value;
-  const months = [...new Set(otRecords.map(r=>r.date.slice(0,7)))].sort();
-  sel.innerHTML = '<option value="all">ทุกเดือน</option>' + months.map(m => {
-    const [y,mo] = m.split('-');
-    return `<option value="${m}">${MONTHS_EN[parseInt(mo)-1]} ${y}</option>`;
-  }).join('');
-  sel.value = (cur && [...sel.options].some(o=>o.value===cur)) ? cur : 'all';
-  const filter = sel.value;
+  const filter = buildMonthFilter('ot-filter', otRecords);
   const data = filter==='all' ? otRecords : otRecords.filter(r=>r.date.startsWith(filter));
+
+  // สรุปรอบตัด (approve 1-15 vs 16+)
+  let summaryHtml = '';
+  if (filter !== 'all') {
+    const approved = data.filter(r=>r.approve);
+    const cut1 = approved.filter(r=>new Date(r.approve).getDate()<=15);
+    const cut2 = approved.filter(r=>new Date(r.approve).getDate()>15);
+    const pay1 = cut1.reduce((s,r)=>s+r.otPay,0);
+    const pay2 = cut2.reduce((s,r)=>s+r.otPay,0);
+    if (approved.length) summaryHtml = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+        <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:11px;padding:12px 16px;">
+          <div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">อนุมัติ 1-15 (ได้เดือนนี้)</div>
+          <div style="font-size:20px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#16a34a;">฿${fmt(pay1)}</div>
+          <div style="font-size:11px;color:#4ade80;margin-top:3px;">${cut1.length} รายการ</div>
+        </div>
+        <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:11px;padding:12px 16px;">
+          <div style="font-size:10px;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">อนุมัติ 16+ (ยกไปเดือนถัดไป)</div>
+          <div style="font-size:20px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--orange);">฿${fmt(pay2)}</div>
+          <div style="font-size:11px;color:#fb923c;margin-top:3px;">${cut2.length} รายการ</div>
+        </div>
+      </div>`;
+  }
+
   document.getElementById('ot-empty').style.display = data.length?'none':'';
-  document.getElementById('ot-body').innerHTML = data.map(r => `<tr>
-    <td>${dateLabel(r.date)}</td>
-    <td class="mono">${r.start||'—'} – ${r.end||'—'}</td>
-    <td class="mono">${r.hours} ชม.</td>
-    <td class="mono">฿${fmtInt(r.salary)}</td>
-    <td class="mono">× ${r.rate}</td>
-    <td class="mono" style="color:var(--orange);font-weight:600;">฿${fmt(r.otPay)}</td>
-    <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
-    <td style="display:flex;gap:4px;">
-      <button class="icon-btn" style="color:var(--text-3);" onclick="openEditOT('${r._key}')" title="แก้ไข">✏️</button>
-      <button class="icon-btn" onclick="askDelete('ot','${r._key}','OT ${dateLabel(r.date)}')">🗑</button>
-    </td>
-  </tr>`).join('');
+  document.getElementById('ot-body').innerHTML = data.map(r => {
+    const pp = payPeriod(r.approve);
+    const chipColor = pp.chip==='ok' ? '#16a34a' : pp.chip==='next' ? 'var(--orange)' : '#aaa';
+    const chipBg = pp.chip==='ok' ? '#f0fdf4' : pp.chip==='next' ? '#fff7ed' : '#f4f4f4';
+    return `<tr>
+      <td>${dateLabel(r.date)}</td>
+      <td class="mono">${r.start||'—'} – ${r.end||'—'}</td>
+      <td class="mono">${r.hours} ชม.</td>
+      <td class="mono">฿${fmtInt(r.salary)}</td>
+      <td class="mono">× ${r.rate}</td>
+      <td class="mono" style="color:var(--orange);font-weight:600;">฿${fmt(r.otPay)}</td>
+      <td>
+        ${r.approve ? `<div style="font-size:11px;color:var(--text-2);">${dateLabel(r.approve)}</div>
+        <div style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:20px;display:inline-block;background:${chipBg};color:${chipColor};margin-top:2px;">${pp.label}</div>` : '<span style="color:var(--text-3);font-size:12px;">—</span>'}
+      </td>
+      <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
+      <td style="display:flex;gap:4px;">
+        <button class="icon-btn" style="color:var(--text-3);" onclick="openEditOT('${r._key}')" title="แก้ไข">✏️</button>
+        <button class="icon-btn" onclick="askDelete('ot','${r._key}','OT ${dateLabel(r.date)}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // inject summary above table
+  const head = document.querySelector('#tab-ot .tbl-card .tbl-head');
+  let box = document.getElementById('ot-cutoff-summary');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'ot-cutoff-summary';
+    box.style.padding = '0 18px';
+    head.parentNode.insertBefore(box, head.nextSibling);
+  }
+  box.innerHTML = summaryHtml;
 }
 
 // ══════════════════════
@@ -784,6 +842,7 @@ window.openEditOT = function(key) {
   document.getElementById('eo-salary').value = r.salary;
   document.getElementById('eo-rate').value = r.rate;
   document.getElementById('eo-note').value = r.note||'';
+  document.getElementById('eo-approve').value = r.approve||'';
   document.getElementById('edit-ot-modal').classList.add('show');
 }
 window.closeEditOT = function() {
@@ -798,6 +857,7 @@ window.saveEditOT = async function() {
   const salary = parseFloat(document.getElementById('eo-salary').value)||0;
   const rate = parseFloat(document.getElementById('eo-rate').value)||1;
   const note = document.getElementById('eo-note').value.trim();
+  const approve = document.getElementById('eo-approve').value;
   if (!date||!start||!end||!salary) { showToast('⚠️ กรุณากรอกข้อมูลให้ครบ','#f59e0b'); return; }
   const startMin = timeToMinutes(start);
   let endMin = timeToMinutes(end);
@@ -805,7 +865,7 @@ window.saveEditOT = async function() {
   const hours = Math.round((endMin - startMin)/60*100)/100;
   const otPay = (salary/30/8)*rate*hours;
   
-  await update(dbRef(db,'ot_travel/ot/'+editOTKey), {date, start, end, hours, salary, rate, otPay, note});
+  await update(dbRef(db,'ot_travel/ot/'+editOTKey), {date, start, end, hours, salary, rate, otPay, note, approve});
   closeEditOT();
   showToast('✏️ แก้ไข OT แล้ว','var(--orange)');
 }
