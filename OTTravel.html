@@ -206,6 +206,7 @@
       <div class="fg"><label>ขาไป (กม.)</label><input type="number" id="t-go" placeholder="0" step="0.1" min="0" oninput="previewTravel()"></div>
       <div class="fg"><label>ขากลับ (กม.)</label><input type="number" id="t-back" placeholder="0" step="0.1" min="0" oninput="previewTravel()"></div>
       <div class="fg"><label>หมายเหตุ</label><input type="text" id="t-note" placeholder="เช่น ไปประชุม"></div>
+      <div class="fg"><label>วันที่อนุมัติ</label><input type="date" id="t-approve"></div>
     </div>
     <!-- preview -->
     <div id="travel-preview" style="display:none;margin-top:12px;background:var(--blue-light);border:1px solid #c7d7fd;border-radius:10px;padding:11px 14px;font-size:13px;color:var(--blue-dark);">
@@ -226,7 +227,7 @@
     </div>
     <div style="overflow-x:auto;">
       <table>
-        <thead><tr><th>วันที่</th><th>ขาไป</th><th>ขากลับ</th><th>รวม กม.</th><th>ค่าเดินทาง</th><th>หมายเหตุ</th><th></th></tr></thead>
+        <thead><tr><th>วันที่</th><th>ขาไป</th><th>ขากลับ</th><th>รวม กม.</th><th>ค่าเดินทาง</th><th>วันอนุมัติ</th><th>หมายเหตุ</th><th></th></tr></thead>
         <tbody id="travel-body"></tbody>
       </table>
     </div>
@@ -336,6 +337,7 @@
       <div class="fg"><label>ขาไป (กม.)</label><input type="number" id="et-go" step="0.1" min="0"></div>
       <div class="fg"><label>ขากลับ (กม.)</label><input type="number" id="et-back" step="0.1" min="0"></div>
       <div class="fg"><label>หมายเหตุ</label><input type="text" id="et-note"></div>
+      <div class="fg"><label>วันที่อนุมัติ</label><input type="date" id="et-approve"></div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeEditTravel()">ยกเลิก</button>
@@ -479,11 +481,12 @@ window.saveTravel = async function() {
   const go = parseFloat(document.getElementById('t-go').value)||0;
   const back = parseFloat(document.getElementById('t-back').value)||0;
   const note = document.getElementById('t-note').value.trim();
+  const approve = document.getElementById('t-approve').value;
   if (!date) { showToast('⚠️ กรุณาเลือกวันที่','#f59e0b'); return; }
   if (!go && !back) { showToast('⚠️ กรุณากรอกระยะทาง','#f59e0b'); return; }
   const total = go+back;
   const cost = total * TRAVEL_RATE;
-  await push(travelRef, {date, go, back, total, cost, note});
+  await push(travelRef, {date, go, back, total, cost, note, approve});
   clearTravel();
   showToast('✅ บันทึกค่าเดินทางแล้ว');
 }
@@ -493,6 +496,7 @@ window.clearTravel = function() {
   document.getElementById('t-go').value = '';
   document.getElementById('t-back').value = '';
   document.getElementById('t-note').value = '';
+  document.getElementById('t-approve').value = '';
   document.getElementById('travel-preview').style.display='none';
 }
 
@@ -512,19 +516,63 @@ function renderTravelStats() {
 function renderTravelTable() {
   const filter = buildMonthFilter('t-filter', travels);
   const data = filter==='all' ? travels : travels.filter(r=>r.date.startsWith(filter));
+
+  // สรุปรอบตัด approve 1-15 vs 16+
+  let summaryHtml = '';
+  if (filter !== 'all') {
+    const approved = data.filter(r=>r.approve);
+    const cut1 = approved.filter(r=>new Date(r.approve).getDate()<=15);
+    const cut2 = approved.filter(r=>new Date(r.approve).getDate()>15);
+    const pay1 = cut1.reduce((s,r)=>s+r.cost,0);
+    const pay2 = cut2.reduce((s,r)=>s+r.cost,0);
+    if (approved.length) summaryHtml = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+        <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:11px;padding:12px 16px;">
+          <div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">อนุมัติ 1-15 (ได้เดือนนี้)</div>
+          <div style="font-size:20px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#16a34a;">฿${fmt(pay1)}</div>
+          <div style="font-size:11px;color:#4ade80;margin-top:3px;">${cut1.length} รายการ</div>
+        </div>
+        <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:11px;padding:12px 16px;">
+          <div style="font-size:10px;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">อนุมัติ 16+ (ยกไปเดือนถัดไป)</div>
+          <div style="font-size:20px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--orange);">฿${fmt(pay2)}</div>
+          <div style="font-size:11px;color:#fb923c;margin-top:3px;">${cut2.length} รายการ</div>
+        </div>
+      </div>`;
+  }
+
   document.getElementById('travel-empty').style.display = data.length?'none':'';
-  document.getElementById('travel-body').innerHTML = data.map(r => `<tr>
-    <td>${dateLabel(r.date)}</td>
-    <td class="mono"><span class="chip chip-go">ไป</span> ${fmt(r.go)} กม.</td>
-    <td class="mono"><span class="chip chip-back">กลับ</span> ${fmt(r.back)} กม.</td>
-    <td class="mono">${fmt(r.total)} กม.</td>
-    <td class="mono pos">฿${fmt(r.cost)}</td>
-    <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
-    <td style="display:flex;gap:4px;">
-      <button class="icon-btn" style="color:var(--text-3);" onclick="openEditTravel('${r._key}')" title="แก้ไข">✏️</button>
-      <button class="icon-btn" onclick="askDelete('travel','${r._key}','ค่าเดินทาง ${dateLabel(r.date)}')">🗑</button>
-    </td>
-  </tr>`).join('');
+  document.getElementById('travel-body').innerHTML = data.map(r => {
+    const pp = payPeriod(r.approve);
+    const chipColor = pp.chip==='ok'?'#16a34a':pp.chip==='next'?'var(--orange)':'#aaa';
+    const chipBg = pp.chip==='ok'?'#f0fdf4':pp.chip==='next'?'#fff7ed':'#f4f4f4';
+    return `<tr>
+      <td>${dateLabel(r.date)}</td>
+      <td class="mono"><span class="chip chip-go">ไป</span> ${fmt(r.go)} กม.</td>
+      <td class="mono"><span class="chip chip-back">กลับ</span> ${fmt(r.back)} กม.</td>
+      <td class="mono">${fmt(r.total)} กม.</td>
+      <td class="mono pos">฿${fmt(r.cost)}</td>
+      <td>
+        ${r.approve ? `<div style="font-size:11px;color:var(--text-2);">${dateLabel(r.approve)}</div>
+        <div style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:20px;display:inline-block;background:${chipBg};color:${chipColor};margin-top:2px;">${pp.label}</div>` : '<span style="color:var(--text-3);font-size:12px;">—</span>'}
+      </td>
+      <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
+      <td style="display:flex;gap:4px;">
+        <button class="icon-btn" style="color:var(--text-3);" onclick="openEditTravel('${r._key}')" title="แก้ไข">✏️</button>
+        <button class="icon-btn" onclick="askDelete('travel','${r._key}','ค่าเดินทาง ${dateLabel(r.date)}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // inject summary above table
+  const head = document.querySelector('#tab-travel .tbl-card .tbl-head');
+  let box = document.getElementById('travel-cutoff-summary');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'travel-cutoff-summary';
+    box.style.padding = '0 18px';
+    head.parentNode.insertBefore(box, head.nextSibling);
+  }
+  box.innerHTML = summaryHtml;
 }
 
 // ══════════════════════
@@ -763,15 +811,21 @@ window.showMonthDetail = function(e, key, monthName) {
       <div class="tbl-head"><h3>🚌 ค่าเดินทาง</h3></div>
       <div style="overflow-x:auto;">
         <table>
-          <thead><tr><th>วันที่</th><th>ขาไป</th><th>ขากลับ</th><th>รวม</th><th>ค่าเดินทาง</th><th>หมายเหตุ</th></tr></thead>
-          <tbody>${tRecs.map(r=>`<tr>
-            <td>${dateLabel(r.date)}</td>
-            <td class="mono">${fmt(r.go)} กม.</td>
-            <td class="mono">${fmt(r.back)} กม.</td>
-            <td class="mono">${fmt(r.total)} กม.</td>
-            <td class="mono pos">฿${fmt(r.cost)}</td>
-            <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
-          </tr>`).join('')}</tbody>
+          <thead><tr><th>วันที่</th><th>ขาไป</th><th>ขากลับ</th><th>รวม</th><th>ค่าเดินทาง</th><th>วันอนุมัติ</th><th>หมายเหตุ</th></tr></thead>
+          <tbody>${tRecs.map(r=>{
+            const pp = payPeriod(r.approve);
+            const chipColor = pp.chip==='ok'?'#16a34a':pp.chip==='next'?'var(--orange)':'#aaa';
+            const chipBg = pp.chip==='ok'?'#f0fdf4':pp.chip==='next'?'#fff7ed':'#f4f4f4';
+            return `<tr>
+              <td>${dateLabel(r.date)}</td>
+              <td class="mono">${fmt(r.go)} กม.</td>
+              <td class="mono">${fmt(r.back)} กม.</td>
+              <td class="mono">${fmt(r.total)} กม.</td>
+              <td class="mono pos">฿${fmt(r.cost)}</td>
+              <td>${r.approve?`<div style="font-size:11px;">${dateLabel(r.approve)}</div><div style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:20px;display:inline-block;background:${chipBg};color:${chipColor};">${pp.label}</div>`:'<span style="color:var(--text-3);font-size:12px;">—</span>'}</td>
+              <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
+            </tr>`;
+          }).join('')}</tbody>
         </table>
       </div>
     </div>` : ''}
@@ -780,15 +834,21 @@ window.showMonthDetail = function(e, key, monthName) {
       <div class="tbl-head"><h3>⏱ OT</h3></div>
       <div style="overflow-x:auto;">
         <table>
-          <thead><tr><th>วันที่</th><th>เวลา</th><th>ชม.</th><th>ตัวคูณ</th><th>ค่า OT</th><th>หมายเหตุ</th></tr></thead>
-          <tbody>${oRecs.map(r=>`<tr>
-            <td>${dateLabel(r.date)}</td>
-            <td class="mono">${r.start||'—'} – ${r.end||'—'}</td>
-            <td class="mono">${r.hours} ชม.</td>
-            <td class="mono">× ${r.rate}</td>
-            <td class="mono" style="color:var(--orange);font-weight:600;">฿${fmt(r.otPay)}</td>
-            <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
-          </tr>`).join('')}</tbody>
+          <thead><tr><th>วันที่</th><th>เวลา</th><th>ชม.</th><th>ตัวคูณ</th><th>ค่า OT</th><th>วันอนุมัติ</th><th>หมายเหตุ</th></tr></thead>
+          <tbody>${oRecs.map(r=>{
+            const pp = payPeriod(r.approve);
+            const chipColor = pp.chip==='ok'?'#16a34a':pp.chip==='next'?'var(--orange)':'#aaa';
+            const chipBg = pp.chip==='ok'?'#f0fdf4':pp.chip==='next'?'#fff7ed':'#f4f4f4';
+            return `<tr>
+              <td>${dateLabel(r.date)}</td>
+              <td class="mono">${r.start||'—'} – ${r.end||'—'}</td>
+              <td class="mono">${r.hours} ชม.</td>
+              <td class="mono">× ${r.rate}</td>
+              <td class="mono" style="color:var(--orange);font-weight:600;">฿${fmt(r.otPay)}</td>
+              <td>${r.approve?`<div style="font-size:11px;">${dateLabel(r.approve)}</div><div style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:20px;display:inline-block;background:${chipBg};color:${chipColor};">${pp.label}</div>`:'<span style="color:var(--text-3);font-size:12px;">—</span>'}</td>
+              <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
+            </tr>`;
+          }).join('')}</tbody>
         </table>
       </div>
     </div>` : ''}`;
@@ -807,6 +867,7 @@ window.openEditTravel = function(key) {
   document.getElementById('et-go').value = r.go;
   document.getElementById('et-back').value = r.back;
   document.getElementById('et-note').value = r.note||'';
+  document.getElementById('et-approve').value = r.approve||'';
   document.getElementById('edit-travel-modal').classList.add('show');
 }
 window.closeEditTravel = function() {
@@ -819,11 +880,11 @@ window.saveEditTravel = async function() {
   const go = parseFloat(document.getElementById('et-go').value)||0;
   const back = parseFloat(document.getElementById('et-back').value)||0;
   const note = document.getElementById('et-note').value.trim();
+  const approve = document.getElementById('et-approve').value;
   if (!date) { showToast('⚠️ กรุณาเลือกวันที่','#f59e0b'); return; }
   const total = go+back;
   const cost = total * TRAVEL_RATE;
-  
-  await update(dbRef(db,'ot_travel/travel/'+editTravelKey), {date, go, back, total, cost, note});
+  await update(dbRef(db,'ot_travel/travel/'+editTravelKey), {date, go, back, total, cost, note, approve});
   closeEditTravel();
   showToast('✏️ แก้ไขค่าเดินทางแล้ว','var(--blue)');
 }
