@@ -645,15 +645,16 @@ window.saveOT = async function() {
 // ── FILTER HELPER (fixed) ──
 function buildMonthFilter(selectId, recs, stateVar) {
   const sel = document.getElementById(selectId);
+  const cur = stateVar === 't' ? tFilterVal : otFilterVal; // read JS var FIRST
   const months = [...new Set(recs.map(r=>r.date.slice(0,7)))].sort();
   sel.innerHTML = '<option value="all">ทุกเดือน</option>' +
     months.map(m => {
       const [y,mo] = m.split('-');
       return `<option value="${m}">${MONTHS_EN[parseInt(mo)-1]} ${y}</option>`;
     }).join('');
-  // restore from JS var (not DOM) to avoid reset bug
-  const cur = stateVar === 't' ? tFilterVal : otFilterVal;
   sel.value = (cur && months.includes(cur)) ? cur : 'all';
+  if (stateVar === 't') tFilterVal = sel.value;
+  else otFilterVal = sel.value;
   return sel.value;
 }
 
@@ -817,17 +818,29 @@ function renderSummary() {
     </div>`;
   }).join('');
 
-  if (activeMonth&&!activeMonth.startsWith(ys)) {
-    activeMonth=null;
-    document.getElementById('sum-detail').style.display='none';
-    document.getElementById('sum-placeholder').style.display='';
+  if (activeMonth) {
+    // re-render detail หลัง data update โดยไม่ reset
+    const [ay] = activeMonth.split('-');
+    if (ay !== ys) {
+      activeMonth=null;
+      document.getElementById('sum-detail').style.display='none';
+      document.getElementById('sum-placeholder').style.display='';
+    } else {
+      // refresh detail ด้วย data ใหม่
+      const activeName = MONTHS_EN[parseInt(activeMonth.split('-')[1])-1];
+      showMonthDetail({currentTarget: document.querySelector('.month-row.active') || document.createElement('div')}, activeMonth, activeName);
+    }
   }
 }
 
 window.showMonthDetail = function(e, key, monthName) {
   activeMonth = key;
   document.querySelectorAll('.month-row').forEach(el=>el.classList.remove('active'));
-  e.currentTarget.classList.add('active');
+  if (e && e.currentTarget) e.currentTarget.classList.add('active');
+  // also mark active via data
+  document.querySelectorAll('.month-row').forEach(el=>{
+    if (el.getAttribute('onclick')&&el.getAttribute('onclick').includes(`'${key}'`)) el.classList.add('active');
+  });
   const [y] = key.split('-');
   const viewMode = document.getElementById('sum-view-mode')?.value || 'work';
   function tRecsForMonth(k) {
@@ -841,6 +854,7 @@ window.showMonthDetail = function(e, key, monthName) {
   const tRecs = tRecsForMonth(key);
   const oRecs = oRecsForMonth(key);
   const cost = tRecs.reduce((s,r)=>s+(r.grand!=null?r.grand:r.cost),0);
+  const toll = tRecs.reduce((s,r)=>s+(r.toll||0),0);
   const dist = tRecs.reduce((s,r)=>s+r.total,0);
   const otPay = oRecs.reduce((s,r)=>s+r.otPay,0);
   const otHours = Math.round(oRecs.reduce((s,r)=>s+r.hours,0)*100)/100;
@@ -851,7 +865,7 @@ window.showMonthDetail = function(e, key, monthName) {
     <div class="form-card" style="margin-bottom:12px;">
       <div class="fc-title" style="margin-bottom:12px;">${modeLabel}</div>
       <div class="stat-row" style="margin-bottom:0;">
-        <div class="stat-card blue"><div class="sc-label">ค่าเดินทาง</div><div class="sc-val">฿${fmtInt(Math.round(cost))}</div><div class="sc-sub">${tRecs.length} วัน · ${fmtInt(Math.round(dist))} กม.</div></div>
+        <div class="stat-card blue"><div class="sc-label">ค่าเดินทาง+ทางด่วน</div><div class="sc-val">฿${fmtInt(Math.round(cost))}</div><div class="sc-sub">${tRecs.length} วัน · ${fmtInt(Math.round(dist))} กม.${toll>0?' · ทางด่วน ฿'+fmtInt(Math.round(toll)):''}</div></div>
         <div class="stat-card" style="border-left:3px solid var(--orange);"><div class="sc-label">ค่า OT</div><div class="sc-val" style="color:var(--orange);">฿${fmtInt(Math.round(otPay))}</div><div class="sc-sub">${oRecs.length} ครั้ง · ${otHours} ชม.</div></div>
         <div class="stat-card" style="border-left:3px solid #7c3aed;"><div class="sc-label">รวมที่ได้รับ</div><div class="sc-val" style="color:#7c3aed;">฿${fmtInt(Math.round(grandTotal))}</div></div>
       </div>
