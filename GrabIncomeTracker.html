@@ -267,11 +267,16 @@
   <div class="sidebar-logo">Dashboard <span>/ App</span></div>
   <div class="nav-section">
     <div class="nav-label">Menu</div>
-    <a class="nav-item" href="index.html"><span class="ni">⊞</span> หน้าหลัก</a>
-    <a class="nav-item active" href="GrabIncomeTracker.html"><span class="ni">🚗</span> Grab Tracker</a>
-    <a class="nav-item" href="OTTravel.html"><span class="ni">⏱</span> OT & Travel</a>
+    <a class="nav-item" href="index.html">
+      <span class="nav-icon">⊞</span> หน้าหลัก
+    </a>
+    <a class="nav-item active" href="GrabIncomeTracker.html">
+      <span class="nav-icon">🚗</span> Grab Tracker
+    </a>
   </div>
-  <div class="sidebar-footer"><p>yellow-mm / pixel<br>github.io</p></div>
+  <div class="sidebar-footer">
+    <p>yellow-mm / pixel<br>github.io</p>
+  </div>
 </aside>
 
 <div class="app-body">
@@ -437,6 +442,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, onValue, push, remove, update }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getAuth, signInAnonymously }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // ─── FIREBASE INIT ───
 const firebaseConfig = {
@@ -450,7 +457,11 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const auth = getAuth(app);
 const recordsRef = ref(db, 'records');
+
+// Sign in anonymously แล้วค่อยโหลดข้อมูล
+signInAnonymously(auth).catch(e => console.error('Auth error:', e));
 
 // ─── STATE ───
 const MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
