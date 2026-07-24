@@ -22,6 +22,8 @@
     --green: #16a34a;
     --green-light: #f0fdf4;
     --red: #dc2626;
+    --purple: #7c3aed;
+    --purple-light: #f5f3ff;
     --shadow: 0 1px 8px rgba(0,0,0,0.06);
     --shadow-md: 0 4px 20px rgba(0,0,0,0.09);
     --radius: 14px;
@@ -190,6 +192,7 @@
 <div class="tabs">
   <div class="tab active" onclick="switchTab('travel')">🚌 ค่าเดินทาง</div>
   <div class="tab" onclick="switchTab('ot')">⏱ คำนวณ OT</div>
+  <div class="tab" onclick="switchTab('allowance')">🍱 เบี้ยเลี้ยง</div>
   <div class="tab" onclick="switchTab('summary')">📊 สรุปรายเดือน</div>
 </div>
 
@@ -290,6 +293,43 @@
 </div>
 
 <!-- ══════════════════════════════════════════
+     TAB: ALLOWANCE
+══════════════════════════════════════════ -->
+<div id="tab-allowance" class="content" style="display:none;">
+  <div class="stat-row" id="allowance-stats"></div>
+
+  <div class="form-card">
+    <div class="fc-title">➕ บันทึกเบี้ยเลี้ยง</div>
+    <div class="form-grid">
+      <div class="fg"><label>วันที่</label><input type="date" id="al-date"></div>
+      <div class="fg"><label>จำนวนเงิน (บาท)</label><input type="number" id="al-amount" placeholder="0" step="1" min="0"></div>
+      <div class="fg"><label>วันที่อนุมัติ</label><input type="date" id="al-approve"></div>
+      <div class="fg"><label>หมายเหตุ</label><input type="text" id="al-note" placeholder="เช่น ออกนอกสถานที่"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" style="background:var(--purple);color:#fff;" onclick="saveAllowance()">💾 บันทึก</button>
+      <button class="btn btn-ghost" onclick="clearAllowance()">✕ ล้าง</button>
+    </div>
+  </div>
+
+  <div class="tbl-card">
+    <div class="tbl-head">
+      <h3>📋 รายการเบี้ยเลี้ยง</h3>
+      <select id="al-filter" onchange="alFilterVal=this.value;renderAllowanceTable()" style="padding:6px 11px;border:1.5px solid var(--border);border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;background:var(--bg);color:var(--text);outline:none;">
+        <option value="all">ทุกเดือน</option>
+      </select>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>วันที่</th><th>จำนวนเงิน</th><th>วันอนุมัติ / รับเงิน</th><th>หมายเหตุ</th><th></th></tr></thead>
+        <tbody id="allowance-body"></tbody>
+      </table>
+    </div>
+    <div id="allowance-empty" class="empty-box" style="display:none;"><div class="ei">📭</div><p>ยังไม่มีข้อมูล</p></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
      TAB: SUMMARY
 ══════════════════════════════════════════ -->
 <div id="tab-summary" class="content" style="display:none;">
@@ -382,6 +422,23 @@
   </div>
 </div>
 
+<!-- EDIT ALLOWANCE MODAL -->
+<div class="modal-overlay" id="edit-al-modal">
+  <div class="modal">
+    <h3>✏️ แก้ไขเบี้ยเลี้ยง</h3>
+    <div class="form-grid" style="margin-bottom:0;">
+      <div class="fg"><label>วันที่</label><input type="date" id="ea-date"></div>
+      <div class="fg"><label>จำนวนเงิน (บาท)</label><input type="number" id="ea-amount" step="1" min="0"></div>
+      <div class="fg"><label>วันที่อนุมัติ</label><input type="date" id="ea-approve"></div>
+      <div class="fg"><label>หมายเหตุ</label><input type="text" id="ea-note"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeEditAl()">ยกเลิก</button>
+      <button class="btn" style="background:var(--purple);color:#fff;" onclick="saveEditAl()">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 </div><!-- app-body -->
 </div><!-- app-layout -->
@@ -407,6 +464,7 @@ const db = getDatabase(app);
 const auth = getAuth(app);
 const travelRef = dbRef(db, 'ot_travel/travel');
 const otRef = dbRef(db, 'ot_travel/ot');
+const allowanceRef = dbRef(db, 'ot_travel/allowance');
 
 // Sign in anonymously แล้วค่อยโหลดข้อมูล
 signInAnonymously(auth).catch(e => console.error('Auth error:', e));
@@ -416,9 +474,13 @@ const MONTHS_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','
 
 let travels = [];
 let otRecords = [];
+let allowances = [];
 let selectedYear = new Date().getFullYear();
 let activeMonth = null;
 let pendingDelete = null; // { type, key }
+let alFilterVal = 'all';
+let editAlKey = null;
+let allowanceLoaded = false;
 
 // ─── HELPERS ───
 const fmt = n => Number(n).toLocaleString('th-TH', {minimumFractionDigits:2,maximumFractionDigits:2});
@@ -464,13 +526,25 @@ onValue(otRef, snap => {
   try { if (travelLoaded) renderSummary(); } catch(e) { console.error('summary error:', e); }
 });
 
+onValue(allowanceRef, snap => {
+  try {
+    const raw = snap.val();
+    allowances = raw ? Object.entries(raw).map(([k,v])=>({_key:k,...v})) : [];
+    allowances.sort((a,b)=>a.date.localeCompare(b.date));
+    allowanceLoaded = true;
+    renderAllowanceStats();
+    renderAllowanceTable();
+  } catch(e) { console.error('allowance listener error:', e); }
+  try { if (travelLoaded && otLoaded) renderSummary(); } catch(e) {}
+});
+
 // ─── TABS ───
 window.switchTab = function(tab) {
-  ['travel','ot','summary'].forEach(t => {
+  ['travel','ot','allowance','summary'].forEach(t => {
     document.getElementById('tab-'+t).style.display = t===tab?'':'none';
   });
   document.querySelectorAll('.tab').forEach((el,i) => {
-    el.classList.toggle('active', ['travel','ot','summary'][i]===tab);
+    el.classList.toggle('active', ['travel','ot','allowance','summary'][i]===tab);
   });
   if (tab==='summary') renderSummary();
 }
@@ -749,7 +823,8 @@ function renderOTTable() {
 function getYears() {
   const allDates = [
     ...travels.map(r=>r.date.slice(0,4)),
-    ...otRecords.map(r=>r.date.slice(0,4))
+    ...otRecords.map(r=>r.date.slice(0,4)),
+    ...allowances.map(r=>r.date.slice(0,4))
   ];
   const y = [...new Set(allDates)];
   const cur = String(new Date().getFullYear());
@@ -787,6 +862,10 @@ function renderSummary() {
     if (viewMode==='pay') return otRecords.filter(r=>{ const pp=payPeriod(r.approve); return pp.payMonth===key; });
     return otRecords.filter(r=>r.date.startsWith(key));
   }
+  function alRecsForMonth(key) {
+    if (viewMode==='pay') return allowances.filter(r=>{ const pp=payPeriod(r.approve); return pp.payMonth===key; });
+    return allowances.filter(r=>r.date.startsWith(key));
+  }
 
   const allT = viewMode==='pay'
     ? travels.filter(r=>{ const pp=payPeriod(r.approve); return pp.payMonth&&pp.payMonth.startsWith(ys); })
@@ -794,31 +873,37 @@ function renderSummary() {
   const allO = viewMode==='pay'
     ? otRecords.filter(r=>{ const pp=payPeriod(r.approve); return pp.payMonth&&pp.payMonth.startsWith(ys); })
     : otRecords.filter(r=>r.date.startsWith(ys));
+  const allAl = viewMode==='pay'
+    ? allowances.filter(r=>{ const pp=payPeriod(r.approve); return pp.payMonth&&pp.payMonth.startsWith(ys); })
+    : allowances.filter(r=>r.date.startsWith(ys));
 
   const yCost = allT.reduce((s,r)=>s+(r.grand!=null?r.grand:r.cost),0);
   const yOTPay = allO.reduce((s,r)=>s+r.otPay,0);
   const yOTHours = Math.round(allO.reduce((s,r)=>s+r.hours,0)*100)/100;
-  const yTotal = yCost+yOTPay;
+  const yAlPay = allAl.reduce((s,r)=>s+r.amount,0);
+  const yTotal = yCost+yOTPay+yAlPay;
 
   document.getElementById('sum-year-stats').innerHTML = `
     <div class="stat-card blue"><div class="sc-label">${viewMode==='pay'?'ค่าเดินทางที่รับ':'ค่าเดินทางรวม'}</div><div class="sc-val">฿${fmtInt(Math.round(yCost))}</div></div>
     <div class="stat-card" style="border-left:3px solid var(--orange);"><div class="sc-label">${viewMode==='pay'?'ค่า OT ที่รับ':'ค่า OT รวม'}</div><div class="sc-val" style="color:var(--orange);">฿${fmtInt(Math.round(yOTPay))}</div></div>
-    <div class="stat-card" style="border-left:3px solid #7c3aed;"><div class="sc-label">รวมทั้งหมด</div><div class="sc-val" style="color:#7c3aed;">฿${fmtInt(Math.round(yTotal))}</div></div>
-    <div class="stat-card"><div class="sc-label">ชม. OT</div><div class="sc-val">${yOTHours}<span style="font-size:11px;"> ชม.</span></div></div>`;
+    <div class="stat-card" style="border-left:3px solid var(--purple);"><div class="sc-label">${viewMode==='pay'?'เบี้ยเลี้ยงที่รับ':'เบี้ยเลี้ยงรวม'}</div><div class="sc-val" style="color:var(--purple);">฿${fmtInt(Math.round(yAlPay))}</div></div>
+    <div class="stat-card" style="border-left:3px solid #0f766e;"><div class="sc-label">รวมทั้งหมด</div><div class="sc-val" style="color:#0f766e;">฿${fmtInt(Math.round(yTotal))}</div></div>`;
 
   document.getElementById('sum-month-list').innerHTML = MONTHS_EN.map((m,idx) => {
     const mo = String(idx+1).padStart(2,'0');
     const key = `${ys}-${mo}`;
     const tRecs = tRecsForMonth(key);
     const oRecs = oRecsForMonth(key);
+    const alRecs = alRecsForMonth(key);
     const cost = tRecs.reduce((s,r)=>s+(r.grand!=null?r.grand:r.cost),0);
     const otPay = oRecs.reduce((s,r)=>s+r.otPay,0);
-    const hasData = tRecs.length>0||oRecs.length>0;
+    const alPay = alRecs.reduce((s,r)=>s+r.amount,0);
+    const hasData = tRecs.length>0||oRecs.length>0||alRecs.length>0;
     return `<div class="month-row ${!hasData?'no-data':''} ${activeMonth===key?'active':''}"
       onclick="${hasData?`showMonthDetail(event,'${key}','${m}')`:''}" >
       <div>
         <div class="mr-name">${m}</div>
-        <div class="mr-val" style="font-size:10px;">${tRecs.length?'🚌฿'+fmtInt(Math.round(cost)):''} ${oRecs.length?'⏱฿'+fmtInt(Math.round(otPay)):''}</div>
+        <div class="mr-val" style="font-size:10px;">${tRecs.length?'🚌฿'+fmtInt(Math.round(cost))+' ':''} ${oRecs.length?'⏱฿'+fmtInt(Math.round(otPay))+' ':''} ${alRecs.length?'🍱฿'+fmtInt(Math.round(alPay)):''}</div>
       </div>
       <div class="mr-dot" style="width:6px;height:6px;border-radius:50%;background:${activeMonth===key?'rgba(255,255,255,0.7)':'var(--blue)'};flex-shrink:0;"></div>
     </div>`;
@@ -857,14 +942,20 @@ window.showMonthDetail = function(e, key, monthName) {
     if (viewMode==='pay') return otRecords.filter(r=>{ const pp=payPeriod(r.approve); return pp.payMonth===k; });
     return otRecords.filter(r=>r.date.startsWith(k));
   }
+  function alRecsForMonth(k) {
+    if (viewMode==='pay') return allowances.filter(r=>{ const pp=payPeriod(r.approve); return pp.payMonth===k; });
+    return allowances.filter(r=>r.date.startsWith(k));
+  }
   const tRecs = tRecsForMonth(key);
   const oRecs = oRecsForMonth(key);
+  const alRecs = alRecsForMonth(key);
   const cost = tRecs.reduce((s,r)=>s+(r.grand!=null?r.grand:r.cost),0);
   const toll = tRecs.reduce((s,r)=>s+(r.toll||0),0);
   const dist = tRecs.reduce((s,r)=>s+r.total,0);
   const otPay = oRecs.reduce((s,r)=>s+r.otPay,0);
   const otHours = Math.round(oRecs.reduce((s,r)=>s+r.hours,0)*100)/100;
-  const grandTotal = cost+otPay;
+  const alPay = alRecs.reduce((s,r)=>s+r.amount,0);
+  const grandTotal = cost+otPay+alPay;
   const modeLabel = viewMode==='pay' ? `รับเงินสิ้นเดือน ${monthName} ${y}` : `${monthName} ${y}`;
   const detail = document.getElementById('sum-detail');
   detail.innerHTML = `
@@ -873,7 +964,8 @@ window.showMonthDetail = function(e, key, monthName) {
       <div class="stat-row" style="margin-bottom:0;">
         <div class="stat-card blue"><div class="sc-label">ค่าเดินทาง+ทางด่วน</div><div class="sc-val">฿${fmtInt(Math.round(cost))}</div><div class="sc-sub">${tRecs.length} วัน · ${fmtInt(Math.round(dist))} กม.${toll>0?' · ทางด่วน ฿'+fmtInt(Math.round(toll)):''}</div></div>
         <div class="stat-card" style="border-left:3px solid var(--orange);"><div class="sc-label">ค่า OT</div><div class="sc-val" style="color:var(--orange);">฿${fmtInt(Math.round(otPay))}</div><div class="sc-sub">${oRecs.length} ครั้ง · ${otHours} ชม.</div></div>
-        <div class="stat-card" style="border-left:3px solid #7c3aed;"><div class="sc-label">รวมที่ได้รับ</div><div class="sc-val" style="color:#7c3aed;">฿${fmtInt(Math.round(grandTotal))}</div></div>
+        <div class="stat-card" style="border-left:3px solid var(--purple);"><div class="sc-label">เบี้ยเลี้ยง</div><div class="sc-val" style="color:var(--purple);">฿${fmtInt(Math.round(alPay))}</div><div class="sc-sub">${alRecs.length} วัน</div></div>
+        <div class="stat-card" style="border-left:3px solid #0f766e;"><div class="sc-label">รวมที่ได้รับ</div><div class="sc-val" style="color:#0f766e;">฿${fmtInt(Math.round(grandTotal))}</div></div>
       </div>
     </div>
     ${tRecs.length ? `
@@ -900,7 +992,7 @@ window.showMonthDetail = function(e, key, monthName) {
       </div>
     </div>` : ''}
     ${oRecs.length ? `
-    <div class="tbl-card">
+    <div class="tbl-card" style="margin-bottom:12px;">
       <div class="tbl-head"><h3>⏱ OT</h3></div>
       <div style="overflow-x:auto;">
         <table>
@@ -921,10 +1013,152 @@ window.showMonthDetail = function(e, key, monthName) {
           }).join('')}</tbody>
         </table>
       </div>
+    </div>` : ''}
+    ${alRecs.length ? `
+    <div class="tbl-card">
+      <div class="tbl-head"><h3>🍱 เบี้ยเลี้ยง</h3></div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>วันที่</th><th>จำนวนเงิน</th><th>วันอนุมัติ</th><th>หมายเหตุ</th></tr></thead>
+          <tbody>${alRecs.map(r=>{
+            const pp = payPeriod(r.approve);
+            const chipColor = pp.chip==='ok'?'#16a34a':pp.chip==='next'?'var(--orange)':'#aaa';
+            const chipBg = pp.chip==='ok'?'#f0fdf4':pp.chip==='next'?'#fff7ed':'#f4f4f4';
+            return `<tr>
+              <td>${dateLabel(r.date)}</td>
+              <td class="mono" style="color:var(--purple);font-weight:600;">฿${fmt(r.amount)}</td>
+              <td>${r.approve?`<div style="font-size:11px;">${dateLabel(r.approve)}</div><div style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:20px;display:inline-block;background:${chipBg};color:${chipColor};">${pp.label}</div>`:'<span style="color:var(--text-3);font-size:12px;">—</span>'}</td>
+              <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+      </div>
     </div>` : ''}`;
   detail.style.display='';
   document.getElementById('sum-placeholder').style.display='none';
 }
+
+// ══════════════════════
+// ALLOWANCE
+// ══════════════════════
+window.saveAllowance = async function() {
+  const date = document.getElementById('al-date').value;
+  const amount = parseFloat(document.getElementById('al-amount').value)||0;
+  const approve = document.getElementById('al-approve').value;
+  const note = document.getElementById('al-note').value.trim();
+  if (!date) { showToast('⚠️ กรุณาเลือกวันที่','#f59e0b'); return; }
+  if (!amount) { showToast('⚠️ กรุณากรอกจำนวนเงิน','#f59e0b'); return; }
+  await push(allowanceRef, {date, amount, approve, note});
+  clearAllowance();
+  showToast('✅ บันทึกเบี้ยเลี้ยงแล้ว','var(--purple)');
+}
+
+window.clearAllowance = function() {
+  document.getElementById('al-date').value = today();
+  document.getElementById('al-amount').value = '';
+  document.getElementById('al-approve').value = '';
+  document.getElementById('al-note').value = '';
+}
+
+function renderAllowanceStats() {
+  const total = allowances.reduce((s,r)=>s+r.amount,0);
+  const thisMonth = today().slice(0,7);
+  const monthTotal = allowances.filter(r=>r.date.startsWith(thisMonth)).reduce((s,r)=>s+r.amount,0);
+  document.getElementById('allowance-stats').innerHTML = `
+    <div class="stat-card" style="background:var(--purple);border-color:var(--purple);"><div class="sc-label" style="color:#fff;">เบี้ยเลี้ยงรวม</div><div class="sc-val" style="color:#fff;">฿${fmtInt(Math.round(total))}</div><div class="sc-sub" style="color:rgba(255,255,255,0.8);">ทั้งหมด</div></div>
+    <div class="stat-card"><div class="sc-label">เดือนนี้</div><div class="sc-val" style="color:var(--purple);">฿${fmtInt(Math.round(monthTotal))}</div></div>
+    <div class="stat-card"><div class="sc-label">จำนวนวัน</div><div class="sc-val">${allowances.length} วัน</div></div>`;
+}
+
+function buildAlFilter() {
+  const sel = document.getElementById('al-filter');
+  const months = [...new Set(allowances.map(r=>r.date.slice(0,7)))].sort();
+  sel.innerHTML = '<option value="all">ทุกเดือน</option>' +
+    months.map(m => { const [y,mo]=m.split('-'); return `<option value="${m}">${MONTHS_EN[parseInt(mo)-1]} ${y}</option>`; }).join('');
+  sel.value = (alFilterVal && months.includes(alFilterVal)) ? alFilterVal : 'all';
+  alFilterVal = sel.value;
+  return sel.value;
+}
+
+function renderAllowanceTable() {
+  const filter = buildAlFilter();
+  const data = filter==='all' ? allowances : allowances.filter(r=>r.date.startsWith(filter));
+
+  // cutoff summary
+  let summaryHtml = '';
+  if (filter !== 'all') {
+    const approved = data.filter(r=>r.approve);
+    const cut1 = approved.filter(r=>new Date(r.approve).getDate()<=15);
+    const cut2 = approved.filter(r=>new Date(r.approve).getDate()>15);
+    const pay1 = cut1.reduce((s,r)=>s+r.amount,0);
+    const pay2 = cut2.reduce((s,r)=>s+r.amount,0);
+    if (approved.length) summaryHtml = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+        <div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:11px;padding:12px 16px;">
+          <div style="font-size:10px;font-weight:700;color:#5b21b6;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">อนุมัติ 1-15 (ได้เดือนนี้)</div>
+          <div style="font-size:20px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--purple);">฿${fmt(pay1)}</div>
+          <div style="font-size:11px;color:#a78bfa;margin-top:3px;">${cut1.length} รายการ</div>
+        </div>
+        <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:11px;padding:12px 16px;">
+          <div style="font-size:10px;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">อนุมัติ 16+ (ยกไปเดือนถัดไป)</div>
+          <div style="font-size:20px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--orange);">฿${fmt(pay2)}</div>
+          <div style="font-size:11px;color:#fb923c;margin-top:3px;">${cut2.length} รายการ</div>
+        </div>
+      </div>`;
+  }
+
+  document.getElementById('allowance-empty').style.display = data.length?'none':'';
+  document.getElementById('allowance-body').innerHTML = data.map(r => {
+    const pp = payPeriod(r.approve);
+    const chipColor = pp.chip==='ok'?'#16a34a':pp.chip==='next'?'var(--orange)':'#aaa';
+    const chipBg = pp.chip==='ok'?'#f0fdf4':pp.chip==='next'?'#fff7ed':'#f4f4f4';
+    return `<tr>
+      <td>${dateLabel(r.date)}</td>
+      <td class="mono" style="color:var(--purple);font-weight:600;">฿${fmt(r.amount)}</td>
+      <td>
+        ${r.approve ? `<div style="font-size:11px;color:var(--text-2);">${dateLabel(r.approve)}</div>
+        <div style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;display:inline-block;background:${chipBg};color:${chipColor};margin-top:2px;">${pp.label}</div>` : '<span style="color:var(--text-3);font-size:12px;">—</span>'}
+      </td>
+      <td style="font-size:12px;color:var(--text-3);">${r.note||'—'}</td>
+      <td style="display:flex;gap:4px;">
+        <button class="icon-btn" style="color:var(--text-3);" onclick="openEditAl('${r._key}')" title="แก้ไข">✏️</button>
+        <button class="icon-btn" onclick="askDelete('allowance','${r._key}','เบี้ยเลี้ยง ${dateLabel(r.date)}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // inject cutoff summary
+  const head = document.querySelector('#tab-allowance .tbl-card .tbl-head');
+  let box = document.getElementById('al-cutoff-summary');
+  if (!box) { box = document.createElement('div'); box.id='al-cutoff-summary'; box.style.padding='0 18px'; head.parentNode.insertBefore(box, head.nextSibling); }
+  box.innerHTML = summaryHtml;
+}
+
+window.openEditAl = function(key) {
+  editAlKey = key;
+  const r = allowances.find(r=>r._key===key);
+  document.getElementById('ea-date').value = r.date;
+  document.getElementById('ea-amount').value = r.amount;
+  document.getElementById('ea-approve').value = r.approve||'';
+  document.getElementById('ea-note').value = r.note||'';
+  document.getElementById('edit-al-modal').classList.add('show');
+}
+window.closeEditAl = function() {
+  document.getElementById('edit-al-modal').classList.remove('show');
+  editAlKey = null;
+}
+window.saveEditAl = async function() {
+  if (!editAlKey) return;
+  const date = document.getElementById('ea-date').value;
+  const amount = parseFloat(document.getElementById('ea-amount').value)||0;
+  const approve = document.getElementById('ea-approve').value;
+  const note = document.getElementById('ea-note').value.trim();
+  if (!date) { showToast('⚠️ กรุณาเลือกวันที่','#f59e0b'); return; }
+  await update(dbRef(db,'ot_travel/allowance/'+editAlKey), {date, amount, approve, note});
+  closeEditAl();
+  showToast('✏️ แก้ไขเบี้ยเลี้ยงแล้ว','var(--purple)');
+}
+document.getElementById('edit-al-modal').addEventListener('click', function(e){ if(e.target===this) closeEditAl(); });
 
 // ══════════════════════
 // EDIT TRAVEL
@@ -1022,7 +1256,8 @@ window.closeDelModal = function() {
 window.confirmDelete = async function() {
   if (!pendingDelete) return;
   const {type, key} = pendingDelete;
-  const r = type==='travel' ? dbRef(db,'ot_travel/travel/'+key) : dbRef(db,'ot_travel/ot/'+key);
+  const path = type==='travel' ? 'ot_travel/travel/'+key : type==='ot' ? 'ot_travel/ot/'+key : 'ot_travel/allowance/'+key;
+  const r = dbRef(db, path);
   await remove(r);
   closeDelModal();
   showToast('🗑 ลบแล้ว','#dc2626');
@@ -1032,6 +1267,7 @@ document.getElementById('del-modal').addEventListener('click', function(e){ if(e
 // ─── INIT ───
 document.getElementById('t-date').value = today();
 document.getElementById('ot-date').value = today();
+document.getElementById('al-date').value = today();
 </script>
 </body>
 </html>
