@@ -253,9 +253,9 @@
       <div class="fg">
         <label>อัตราตัวคูณ</label>
         <select id="ot-rate" onchange="calcOT()">
-          <option value="1">× 1 (ล่วงเวลาวันหยุด [ในเวลาทำงาน])</option>
-          <option value="1.5">× 1.5 (ล่วงเวลาในวันทำงาน)</option>
-          <option value="3">× 3 (ล่วงเวลาวันหยุด [นอกเวลาทำงาน])</option>
+          <option value="1">× 1 [ล่วงเวลาวันหยุด ในเวลาทำงาน]</option>
+          <option value="1.5">× 1.5 [ล่วงเวลาในวันทำงาน]</option>
+          <option value="3">× 3 [ล่วงเวลาวันหยุด นอกเวลาทำงาน]</option>
         </select>
       </div>
       <div class="fg"><label>หมายเหตุ</label><input type="text" id="ot-note" placeholder="เช่น ประชุมนอกเวลา"></div>
@@ -263,6 +263,9 @@
     </div>
     <div style="background:#f8f9fb;border-radius:10px;padding:11px 14px;margin-top:12px;font-size:12px;color:var(--text-3);">
       ชั่วโมงทำงานปกติ: <strong style="color:var(--text);">8 ชม./วัน</strong> &nbsp;·&nbsp; สูตร: (เงินเดือน ÷ 30 ÷ 8) × ตัวคูณ × ชม. OT &nbsp;·&nbsp; รอบจ่าย: ≤15 ได้เดือนนั้น / 16+ ยกไปเดือนถัดไป
+     <br> 
+      × 1 [ล่วงเวลาวันหยุด ในเวลาทำงาน] &nbsp;·&nbsp; × 1.5 [ล่วงเวลาในวันทำงาน] &nbsp;·&nbsp; × 3 [ล่วงเวลาวันหยุด นอกเวลาทำงาน]
+      </br>
     </div>
     <div class="ot-result" id="ot-result" style="display:none;">
       <div>
